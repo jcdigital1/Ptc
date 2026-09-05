@@ -28,7 +28,7 @@ export const SellerDashboard: React.FC = () => {
     deleteAd,
     renewAd,
     updateAd,
-    setIsPublishModalOpen,
+    startPublishFlow,
     setActiveView,
     openAdDetail,
     showToast
@@ -144,7 +144,7 @@ export const SellerDashboard: React.FC = () => {
         </div>
 
         <button
-          onClick={() => setIsPublishModalOpen(true)}
+          onClick={startPublishFlow}
           className="bg-[#F95700] hover:bg-[#E04E00] text-white font-bold px-5 py-2.5 rounded-full shadow-md shadow-orange-500/20 flex items-center gap-2 text-sm self-start sm:self-auto cursor-pointer"
         >
           <PlusCircle className="w-4 h-4" />
@@ -245,7 +245,7 @@ export const SellerDashboard: React.FC = () => {
               : 'Desapegue de eletrônicos, veículos, roupas ou anuncie seus serviços em Patrocínio.'}
           </p>
           <button
-            onClick={() => setIsPublishModalOpen(true)}
+            onClick={startPublishFlow}
             className="bg-[#F95700] text-white font-bold px-6 py-2.5 rounded-full text-sm shadow-md"
           >
             Publicar primeiro anúncio

@@ -28,8 +28,7 @@ export const Header: React.FC = () => {
     setActiveView,
     activeView,
     setIsAuthModalOpen,
-    setIsPublishModalOpen,
-    openBeforePublishModal,
+    startPublishFlow,
     setIsSafetyModalOpen,
     logout,
     resetFilters
@@ -78,15 +77,17 @@ export const Header: React.FC = () => {
       </div>
 
       {/* Main Header Row */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-2.5 sm:py-3 flex items-center justify-between gap-3 sm:gap-6">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 py-2.5 sm:py-3 flex items-center justify-between gap-2 sm:gap-6">
         {/* Logo */}
-        <Logo
-          size="md"
-          onClick={() => {
-            resetFilters();
-            setActiveView('home');
-          }}
-        />
+        <div className="flex-shrink-0">
+          <Logo
+            size="md"
+            onClick={() => {
+              resetFilters();
+              setActiveView('home');
+            }}
+          />
+        </div>
 
         {/* Center: Search Bar with Patrocínio Bairro Selector */}
         <form
@@ -172,11 +173,11 @@ export const Header: React.FC = () => {
         </form>
 
         {/* Right Navigation & CTAs */}
-        <div className="flex items-center gap-2 sm:gap-3">
+        <div className="flex items-center gap-1.5 sm:gap-3 flex-shrink-0">
           {/* Favorites link button */}
           <button
             onClick={() => setActiveView('favorites')}
-            className={`relative p-2 rounded-full hover:bg-orange-50 transition-colors ${activeView === 'favorites' ? 'text-[#F95700] bg-orange-50' : 'text-gray-600'}`}
+            className={`relative p-2 rounded-full hover:bg-orange-50 transition-colors flex-shrink-0 ${activeView === 'favorites' ? 'text-[#F95700] bg-orange-50' : 'text-gray-600'}`}
             title="Meus Favoritos"
           >
             <Heart className={`w-5 h-5 ${favorites.length > 0 && activeView === 'favorites' ? 'fill-[#F95700] text-[#F95700]' : ''}`} />
@@ -189,7 +190,7 @@ export const Header: React.FC = () => {
 
           {/* User Account / Auth Dropdown */}
           {currentUser ? (
-            <div className="relative">
+            <div className="relative flex-shrink-0">
               <button
                 onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
                 className="flex items-center gap-2 p-1 sm:px-2.5 sm:py-1.5 rounded-full hover:bg-gray-100 border border-gray-200 transition-all text-xs font-semibold text-gray-800"
@@ -284,7 +285,7 @@ export const Header: React.FC = () => {
               )}
             </div>
           ) : (
-            <div className="flex items-center gap-1.5 sm:gap-2">
+            <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
               <button
                 onClick={() => setIsAuthModalOpen(true)}
                 className="text-xs sm:text-sm font-semibold text-gray-700 hover:text-[#F95700] px-2.5 py-1.5 rounded-lg hover:bg-orange-50 transition-colors"
@@ -296,19 +297,14 @@ export const Header: React.FC = () => {
 
           {/* Primary Action Button: "Publicar Anúncio" */}
           <button
-            onClick={() => {
-              if (!currentUser) {
-                setIsAuthModalOpen(true);
-              } else if (!currentUser.hasAcceptedSellerDisclaimer) {
-                openBeforePublishModal();
-              } else {
-                setIsPublishModalOpen(true);
-              }
-            }}
-            className="bg-[#F95700] hover:bg-[#E04E00] active:scale-95 text-white text-xs sm:text-sm font-bold px-3.5 sm:px-4 py-2 rounded-full shadow-md shadow-orange-500/20 flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap"
+            id="header-publish-ad-button"
+            onClick={startPublishFlow}
+            className="flex-shrink-0 bg-[#F95700] hover:bg-[#E04E00] active:scale-95 text-white text-xs sm:text-sm font-bold px-3 sm:px-4 py-2 rounded-full shadow-md shadow-orange-500/20 flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap min-w-max"
+            title="Publicar Anúncio"
           >
-            <PlusCircle className="w-4 h-4" />
-            <span>Publicar anúncio</span>
+            <PlusCircle className="w-4 h-4 flex-shrink-0" />
+            <span className="hidden sm:inline">Publicar anúncio</span>
+            <span className="sm:hidden">Anunciar</span>
           </button>
         </div>
       </div>

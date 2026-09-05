@@ -149,6 +149,9 @@ interface AppContextType {
   addNeighborhood: (name: string, type?: NeighborhoodItem['type']) => Promise<boolean>;
   toggleNeighborhoodActive: (id: string) => Promise<boolean>;
 
+  // Primary publish flow gate
+  startPublishFlow: () => void;
+
   syncWithServer: () => Promise<void>;
 
   // Toast notifications
@@ -411,53 +414,73 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, [currentUser]);
 
-  // Sync to localStorage
+  // Sync to localStorage safely
   useEffect(() => {
-    localStorage.setItem('vendi_ads', JSON.stringify(ads));
+    try {
+      localStorage.setItem('vendi_ads', JSON.stringify(ads));
+    } catch (e) {}
   }, [ads]);
 
   useEffect(() => {
-    localStorage.setItem('vendi_banners', JSON.stringify(banners));
+    try {
+      localStorage.setItem('vendi_banners', JSON.stringify(banners));
+    } catch (e) {}
   }, [banners]);
 
   useEffect(() => {
-    localStorage.setItem('vendi_users', JSON.stringify(users));
+    try {
+      localStorage.setItem('vendi_users', JSON.stringify(users));
+    } catch (e) {}
   }, [users]);
 
   useEffect(() => {
-    localStorage.setItem('vendi_neighborhoods', JSON.stringify(neighborhoods));
+    try {
+      localStorage.setItem('vendi_neighborhoods', JSON.stringify(neighborhoods));
+    } catch (e) {}
   }, [neighborhoods]);
 
   useEffect(() => {
-    if (currentUser) {
-      localStorage.setItem('vendi_user_session', JSON.stringify(currentUser));
-      if (currentUser.termsAcceptance && currentUser.termsAcceptance.termsVersion !== CURRENT_TERMS_VERSION) {
-        setIsTermsReacceptanceModalOpen(true);
+    try {
+      if (currentUser) {
+        localStorage.setItem('vendi_user_session', JSON.stringify(currentUser));
+        if (currentUser.termsAcceptance && currentUser.termsAcceptance.termsVersion !== CURRENT_TERMS_VERSION) {
+          setIsTermsReacceptanceModalOpen(true);
+        }
+      } else {
+        localStorage.removeItem('vendi_user_session');
+        setIsTermsReacceptanceModalOpen(false);
       }
-    } else {
-      localStorage.removeItem('vendi_user_session');
-      setIsTermsReacceptanceModalOpen(false);
-    }
+    } catch (e) {}
   }, [currentUser]);
 
   useEffect(() => {
-    localStorage.setItem('vendi_favorites', JSON.stringify(favorites));
+    try {
+      localStorage.setItem('vendi_favorites', JSON.stringify(favorites));
+    } catch (e) {}
   }, [favorites]);
 
   useEffect(() => {
-    localStorage.setItem('vendi_reports', JSON.stringify(reports));
+    try {
+      localStorage.setItem('vendi_reports', JSON.stringify(reports));
+    } catch (e) {}
   }, [reports]);
 
   useEffect(() => {
-    localStorage.setItem('vendi_removed_ads', JSON.stringify(removedAdsHistory));
+    try {
+      localStorage.setItem('vendi_removed_ads', JSON.stringify(removedAdsHistory));
+    } catch (e) {}
   }, [removedAdsHistory]);
 
   useEffect(() => {
-    localStorage.setItem('vendi_deletion_requests', JSON.stringify(accountDeletionRequests));
+    try {
+      localStorage.setItem('vendi_deletion_requests', JSON.stringify(accountDeletionRequests));
+    } catch (e) {}
   }, [accountDeletionRequests]);
 
   useEffect(() => {
-    localStorage.setItem('vendi_metrics', JSON.stringify(metrics));
+    try {
+      localStorage.setItem('vendi_metrics', JSON.stringify(metrics));
+    } catch (e) {}
   }, [metrics]);
 
   // Real-time username availability check
@@ -580,6 +603,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const openBeforePublishModal = () => {
+    if (!currentUser) {
+      setAuthModalMode('login');
+      setIsAuthModalOpen(true);
+      showToast('Entre ou cadastre-se para anunciar.', 'info');
+      return;
+    }
+    if (!currentUser.avatarUrl || currentUser.avatarUrl.trim() === '') {
+      showToast('Você precisa adicionar uma foto de perfil antes de anunciar!', 'info');
+      setAuthModalMode('set_photo');
+      setIsAuthModalOpen(true);
+      return;
+    }
     setIsBeforePublishModalOpen(true);
   };
 
@@ -588,11 +623,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const confirmSellerDisclaimer = () => {
-    if (currentUser) {
-      const updated = { ...currentUser, hasAcceptedSellerDisclaimer: true };
-      setCurrentUser(updated);
-      setUsers((prev) => prev.map((u) => (u.id === updated.id ? updated : u)));
+    if (!currentUser) {
+      setIsBeforePublishModalOpen(false);
+      setAuthModalMode('login');
+      setIsAuthModalOpen(true);
+      return;
     }
+    if (!currentUser.avatarUrl || currentUser.avatarUrl.trim() === '') {
+      showToast('Você precisa adicionar uma foto de perfil antes de anunciar!', 'info');
+      setIsBeforePublishModalOpen(false);
+      setAuthModalMode('set_photo');
+      setIsAuthModalOpen(true);
+      return;
+    }
+    const updated = { ...currentUser, hasAcceptedSellerDisclaimer: true };
+    setCurrentUser(updated);
+    setUsers((prev) => prev.map((u) => (u.id === updated.id ? updated : u)));
     setIsBeforePublishModalOpen(false);
     setIsPublishModalOpen(true);
     showToast('Aviso confirmado! Agora você pode criar seu anúncio.', 'info');
@@ -703,8 +749,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Create an ad via server API
   const createAd = async (adData: Omit<Ad, 'id' | 'createdAt' | 'viewsCount' | 'whatsappClicksCount' | 'status'>): Promise<Ad | null> => {
     if (!currentUser) {
+      setAuthModalMode('login');
       setIsAuthModalOpen(true);
       showToast('É necessário estar conectado para anunciar.', 'error');
+      return null;
+    }
+
+    if (!currentUser.avatarUrl || currentUser.avatarUrl.trim() === '') {
+      showToast('Você precisa ter uma foto de perfil cadastrada para publicar anúncios!', 'error');
+      setAuthModalMode('set_photo');
+      setIsAuthModalOpen(true);
       return null;
     }
 
@@ -1026,8 +1080,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setIsAuthModalOpen(false);
   };
 
-  // Register user via server API with local fallback
+  // Register user: immediate registration and login, no email confirmation code required
   const registerUser = async (formData: any): Promise<{ success: boolean; requireVerification?: boolean; email?: string; demoCode?: string; message?: string }> => {
+    let createdUser: User | null = null;
+
     try {
       const res = await fetch('/api/auth/register', {
         method: 'POST',
@@ -1044,60 +1100,73 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           return { success: false, message: data.error };
         }
 
-        setPendingVerificationEmail(data.email);
-        setPendingDemoCode(data.demoCode || null);
-        setAuthModalMode('verify_email');
-        showToast(data.message || 'Código de confirmação enviado para seu e-mail!', 'success');
-        return { success: true, requireVerification: true, email: data.email, demoCode: data.demoCode };
+        if (data.user) {
+          createdUser = data.user;
+        }
       }
     } catch (e) {
       console.warn('Server registration offline, using local store:', e);
     }
 
     // Local / static fallback (e.g. Vercel)
-    const newUser: User = {
-      id: 'u-' + Date.now(),
-      name: formData.name,
-      username: formData.username,
-      email: formData.email,
-      phone: formData.phone || '',
-      whatsapp: formData.phone || '',
-      neighborhood: formData.neighborhood || 'Centro',
-      avatarUrl: formData.avatarUrl || '',
-      password: formData.password || '123456',
-      isEmailVerified: false,
-      isWhatsAppVerified: false,
-      isSuspended: false,
-      isBlocked: false,
-      hasAcceptedSellerDisclaimer: true,
-      memberSince: 'Novo membro',
-      joinedDate: 'Hoje',
-      activeAdsCount: 0,
-      soldAdsCount: 0,
-      role: 'user',
-      birthDate: formData.birthDate,
-      rating: 5.0,
-      totalRatings: 0,
-      termsAcceptance: {
-        termsVersion: CURRENT_TERMS_VERSION,
-        privacyVersion: CURRENT_PRIVACY_VERSION,
-        acceptedAt: new Date().toISOString(),
-        ipAddress: '177.136.204.18 (Patrocínio - MG)',
-        method: 'web_register_form',
-        confirmedAge18: true
-      }
-    };
+    if (!createdUser) {
+      const rawDigits = (formData.phone || '').replace(/\D/g, '');
+      const ddd = rawDigits.substring(0, 2) || '34';
+      const formattedWhatsapp = rawDigits.length === 11 
+        ? `(${ddd}) ${rawDigits.substring(2, 7)}-${rawDigits.substring(7)}`
+        : formData.phone || '';
 
-    setUsers((prev) => [newUser, ...prev.filter((u) => u.email !== newUser.email && u.username !== newUser.username)]);
+      createdUser = {
+        id: 'u-' + Date.now(),
+        name: formData.name,
+        username: formData.username.startsWith('@') ? formData.username : `@${formData.username}`,
+        email: formData.email,
+        phone: `+55${rawDigits}`,
+        whatsapp: formattedWhatsapp,
+        neighborhood: formData.neighborhood || 'Centro',
+        avatarUrl: formData.avatarUrl || '',
+        password: formData.password || '123456',
+        isEmailVerified: true,
+        isWhatsAppVerified: true,
+        isSuspended: false,
+        isBlocked: false,
+        hasAcceptedSellerDisclaimer: false,
+        memberSince: 'Novo membro',
+        joinedDate: 'Hoje',
+        activeAdsCount: 0,
+        soldAdsCount: 0,
+        role: 'user',
+        birthDate: formData.birthDate,
+        rating: 5.0,
+        totalRatings: 0,
+        termsAcceptance: {
+          termsVersion: CURRENT_TERMS_VERSION,
+          privacyVersion: CURRENT_PRIVACY_VERSION,
+          acceptedAt: new Date().toISOString(),
+          ipAddress: '177.136.204.18 (Patrocínio - MG)',
+          method: 'web_register_form',
+          confirmedAge18: true
+        }
+      };
+    }
+
+    // Immediately log in user
+    setCurrentUser(createdUser);
+    setUsers((prev) => [createdUser!, ...prev.filter((u) => u.id !== createdUser!.id && u.email !== createdUser!.email)]);
     try {
-      localStorage.setItem('vendi_users', JSON.stringify([newUser, ...users.filter((u) => u.email !== newUser.email)]));
+      localStorage.setItem('vendi_user_session', JSON.stringify(createdUser));
+      const savedUsers = JSON.parse(localStorage.getItem('vendi_users') || '[]');
+      localStorage.setItem('vendi_users', JSON.stringify([createdUser, ...savedUsers.filter((u: any) => u.id !== createdUser!.id)]));
     } catch (e) {}
 
-    setPendingVerificationEmail(newUser.email);
-    setPendingDemoCode('123456');
-    setAuthModalMode('verify_email');
-    showToast('Conta criada com sucesso! Use o código demonstrativo 123456 para confirmar.', 'success');
-    return { success: true, requireVerification: true, email: newUser.email, demoCode: '123456' };
+    setPendingVerificationEmail(null);
+    setPendingDemoCode(null);
+
+    // Prompt user immediately to upload profile photo
+    setAuthModalMode('set_photo');
+    setIsAuthModalOpen(true);
+    showToast('Conta criada com sucesso! Agora adicione sua foto de perfil. 📸', 'success');
+    return { success: true, requireVerification: false, email: createdUser.email };
   };
 
   // Verify email code
@@ -1222,17 +1291,54 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
       if (res.ok) {
         const data = await res.json();
-        setCurrentUser(data.user);
-        setUsers((prev) => prev.map((u) => (u.id === data.user.id ? data.user : u)));
-        showToast('Perfil atualizado com sucesso!');
-        return;
+        if (data.user) {
+          setCurrentUser(data.user);
+          setUsers((prev) => prev.map((u) => (u.id === data.user.id ? data.user : u)));
+          try {
+            localStorage.setItem('vendi_user_session', JSON.stringify(data.user));
+            const savedUsers = JSON.parse(localStorage.getItem('vendi_users') || '[]');
+            localStorage.setItem('vendi_users', JSON.stringify(savedUsers.map((u: any) => u.id === data.user.id ? data.user : u)));
+          } catch (e) {}
+          showToast('Perfil atualizado com sucesso!', 'success');
+          return;
+        }
       }
     } catch (e) {}
 
     const updated = { ...currentUser, ...userData };
     setCurrentUser(updated);
     setUsers((prev) => prev.map((u) => (u.id === updated.id ? updated : u)));
-    showToast('Perfil atualizado com sucesso!');
+    try {
+      localStorage.setItem('vendi_user_session', JSON.stringify(updated));
+      const savedUsers = JSON.parse(localStorage.getItem('vendi_users') || '[]');
+      localStorage.setItem('vendi_users', JSON.stringify(savedUsers.map((u: any) => u.id === updated.id ? updated : u)));
+    } catch (e) {}
+    showToast('Perfil atualizado com sucesso!', 'success');
+  };
+
+  // Safe gate to publish ads: strictly enforces login, profile photo, and seller disclaimer
+  const startPublishFlow = () => {
+    if (!currentUser) {
+      setAuthModalMode('login');
+      setIsAuthModalOpen(true);
+      showToast('Entre ou crie sua conta para publicar um anúncio.', 'info');
+      return;
+    }
+
+    const hasPhoto = Boolean(currentUser.avatarUrl && currentUser.avatarUrl.trim() !== '');
+    if (!hasPhoto) {
+      showToast('Você precisa adicionar uma foto de perfil antes de anunciar!', 'info');
+      setAuthModalMode('set_photo');
+      setIsAuthModalOpen(true);
+      return;
+    }
+
+    if (!currentUser.hasAcceptedSellerDisclaimer) {
+      setIsBeforePublishModalOpen(true);
+      return;
+    }
+
+    setIsPublishModalOpen(true);
   };
 
   const blockUser = (userId: string) => {
@@ -1489,6 +1595,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addBanner,
         addNeighborhood,
         toggleNeighborhoodActive,
+        startPublishFlow,
         syncWithServer,
         toast: toastMessage,
         toastMessage,

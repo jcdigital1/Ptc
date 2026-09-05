@@ -205,10 +205,8 @@ async function startServer() {
     if (!username || !username.trim()) {
       return res.status(400).json({ error: 'O nome de usuário é obrigatório.' });
     }
-    // Avatar URL defaults if not provided yet (will be prompted right after registration)
-    const finalAvatarUrl = (avatarUrl && avatarUrl.trim())
-      ? avatarUrl.trim()
-      : 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&auto=format&fit=crop&q=80';
+    // Avatar URL: empty by default until user uploads their own photo
+    const finalAvatarUrl = (avatarUrl && avatarUrl.trim()) ? avatarUrl.trim() : '';
 
     if (!email || !email.trim()) {
       return res.status(400).json({ error: 'O e-mail é obrigatório.' });
@@ -340,9 +338,9 @@ async function startServer() {
       isBlocked: false,
       isSuspended: false,
       isWhatsAppVerified: true, // Registered mobile is verified
-      isEmailVerified: false, // Requires email code entry
-      emailVerificationCode: verificationCode,
-      emailVerificationExpiresAt: expiresAt,
+      isEmailVerified: true, // Email confirmed upon registration without extra codes
+      emailVerificationCode: undefined,
+      emailVerificationExpiresAt: undefined,
       hasAcceptedSellerDisclaimer: false,
       birthDate,
       role: 'user',
@@ -362,16 +360,13 @@ async function startServer() {
 
     broadcastSSE('USER_REGISTERED', { id: userId, username: cleanUsername });
 
-    console.log(`[AUTH] Confirmation code for ${emailClean}: ${verificationCode} (expires in 15min)`);
+    console.log(`[AUTH] User registered successfully: ${emailClean} (${cleanUsername})`);
 
     return res.status(201).json({
       success: true,
-      requireEmailVerification: true,
-      email: emailClean,
-      codeExpiresAt: expiresAt,
-      // We also return demoCode so the user can see and test the verification code immediately in the preview
-      demoCode: verificationCode,
-      message: `Código de verificação de 6 dígitos enviado para ${emailClean}.`
+      requireEmailVerification: false,
+      user: sanitizeUser(newUser),
+      message: 'Conta criada com sucesso!'
     });
   });
 
@@ -520,28 +515,6 @@ async function startServer() {
       });
     }
 
-    // Check if email is verified!
-    if (!user.isEmailVerified) {
-      // Re-generate a fresh code if expired
-      let code = user.emailVerificationCode;
-      let expiresAt = user.emailVerificationExpiresAt;
-      if (!code || !expiresAt || Date.now() > new Date(expiresAt).getTime()) {
-        code = Math.floor(100000 + Math.random() * 900000).toString();
-        expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
-        user.emailVerificationCode = code;
-        user.emailVerificationExpiresAt = expiresAt;
-        saveDatabase();
-      }
-
-      return res.status(403).json({
-        requireEmailVerification: true,
-        email: user.email,
-        demoCode: code,
-        codeExpiresAt: expiresAt,
-        error: 'Seu e-mail ainda não foi confirmado. Digite o código de 6 dígitos recebido para liberar o acesso.'
-      });
-    }
-
     return res.json({
       success: true,
       user: sanitizeUser(user),
@@ -578,8 +551,8 @@ async function startServer() {
 
     const seller = db.users.find(u => u.id === userId);
     if (!seller) return res.status(404).json({ error: 'Vendedor não encontrado.' });
-    if (!seller.isEmailVerified) {
-      return res.status(403).json({ error: 'Confirme seu e-mail antes de anunciar.' });
+    if (!seller.avatarUrl || seller.avatarUrl.trim() === '') {
+      return res.status(403).json({ error: 'Você precisa ter uma foto de perfil cadastrada para publicar anúncios no Vendi Patrocínio.' });
     }
     if (seller.isBlocked || seller.isSuspended) {
       return res.status(403).json({ error: 'Conta suspensa. Não é possível anunciar.' });

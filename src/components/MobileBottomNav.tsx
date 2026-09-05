@@ -9,8 +9,7 @@ export const MobileBottomNav: React.FC = () => {
     favorites,
     currentUser,
     setIsAuthModalOpen,
-    setIsPublishModalOpen,
-    openBeforePublishModal
+    startPublishFlow
   } = useApp();
 
   return (
@@ -40,15 +39,7 @@ export const MobileBottomNav: React.FC = () => {
 
         {/* Publicar (Elevated Center Button) */}
         <button
-          onClick={() => {
-            if (!currentUser) {
-              setIsAuthModalOpen(true);
-            } else if (!currentUser.hasAcceptedSellerDisclaimer) {
-              openBeforePublishModal();
-            } else {
-              setIsPublishModalOpen(true);
-            }
-          }}
+          onClick={startPublishFlow}
           className="flex flex-col items-center justify-center -mt-3.5 group"
         >
           <div className="w-12 h-12 rounded-full bg-[#F95700] text-white flex items-center justify-center shadow-lg shadow-orange-500/30 group-active:scale-95 transition-transform">

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { compressImage } from '../utils/imageUtils';
 import {
   User,
   MapPin,
@@ -48,20 +49,23 @@ export const UserProfile: React.FC = () => {
 
   if (!currentUser) return null;
 
-  const handlePhotoFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhotoFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        showToast('A imagem deve ter no máximo 5MB.', 'error');
+      if (file.size > 12 * 1024 * 1024) {
+        showToast('A imagem deve ter no máximo 12MB.', 'error');
         return;
       }
-      const reader = new FileReader();
-      reader.onload = () => {
-        const result = reader.result as string;
-        setAvatarUrl(result);
-        showToast('Foto selecionada! Clique em "Salvar Perfil" para confirmar.', 'info');
-      };
-      reader.readAsDataURL(file);
+      try {
+        showToast('Processando foto da galeria...', 'info');
+        const compressed = await compressImage(file, 400, 400, 0.82);
+        setAvatarUrl(compressed);
+        await updateCurrentUser({ avatarUrl: compressed });
+        showToast('Foto de perfil salva com sucesso! 🎉', 'success');
+      } catch (err) {
+        console.error('Failed to compress avatar:', err);
+        showToast('Erro ao processar foto da galeria. Tente outra imagem.', 'error');
+      }
     }
   };
 

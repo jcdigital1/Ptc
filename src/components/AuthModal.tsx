@@ -33,14 +33,7 @@ import {
 } from 'lucide-react';
 import { formatBrazilianInputPhone, validateBrazilianMobile } from '../utils/whatsapp';
 import { formatBrazilianDateInput, calculateAgeFromDate } from '../utils/dateUtils';
-
-const SAMPLE_AVATARS = [
-  'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=200&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=200&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&auto=format&fit=crop&q=80',
-];
+import { compressImage } from '../utils/imageUtils';
 
 export const AuthModal: React.FC = () => {
   const {
@@ -75,7 +68,7 @@ export const AuthModal: React.FC = () => {
   const [showForgotModal, setShowForgotModal] = useState(false);
 
   // Post-registration profile photo state
-  const [selectedPhoto, setSelectedPhoto] = useState<string>(SAMPLE_AVATARS[0]);
+  const [selectedPhoto, setSelectedPhoto] = useState<string>('');
   const [customPhotoUrl, setCustomPhotoUrl] = useState('');
   const [isSavingPhoto, setIsSavingPhoto] = useState(false);
 
@@ -94,7 +87,7 @@ export const AuthModal: React.FC = () => {
   const [customNeighborhood, setCustomNeighborhood] = useState('');
   const [neighborhoodSearch, setNeighborhoodSearch] = useState('');
   const [isNeighborhoodDropdownOpen, setIsNeighborhoodDropdownOpen] = useState(false);
-  const [avatarUrl, setAvatarUrl] = useState(SAMPLE_AVATARS[0]);
+  const [avatarUrl, setAvatarUrl] = useState('');
   const [customAvatarInput, setCustomAvatarInput] = useState('');
 
   // Mandatory checkboxes
@@ -148,11 +141,9 @@ export const AuthModal: React.FC = () => {
     if (authModalMode === 'set_photo') {
       if (currentUser?.avatarUrl) {
         setSelectedPhoto(currentUser.avatarUrl);
-      } else if (!selectedPhoto) {
-        setSelectedPhoto(SAMPLE_AVATARS[0]);
       }
     }
-  }, [authModalMode, currentUser, selectedPhoto]);
+  }, [authModalMode, currentUser]);
 
   const handleUsernameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let val = e.target.value.trim().toLowerCase();
@@ -333,30 +324,60 @@ export const AuthModal: React.FC = () => {
     }
   };
 
-  const handlePostRegFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleRegistrationPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        showToast('A imagem deve ter no máximo 5MB.', 'error');
+      if (file.size > 12 * 1024 * 1024) {
+        showToast('A imagem deve ter no máximo 12MB.', 'error');
         return;
       }
-      const reader = new FileReader();
-      reader.onload = () => {
-        const result = reader.result as string;
-        setSelectedPhoto(result);
-        showToast('Foto carregada com sucesso! Clique em salvar para confirmar.', 'info');
-      };
-      reader.readAsDataURL(file);
+      try {
+        showToast('Processando foto da galeria...', 'info');
+        const compressed = await compressImage(file, 400, 400, 0.82);
+        setAvatarUrl(compressed);
+        setSelectedPhoto(compressed);
+        showToast('Foto de perfil carregada com sucesso!', 'success');
+      } catch (err) {
+        console.error('Failed to compress avatar:', err);
+        showToast('Erro ao processar imagem da galeria. Tente outra foto.', 'error');
+      }
+    }
+  };
+
+  const handlePostRegFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 12 * 1024 * 1024) {
+        showToast('A imagem deve ter no máximo 12MB.', 'error');
+        return;
+      }
+      try {
+        showToast('Processando imagem...', 'info');
+        const compressed = await compressImage(file, 400, 400, 0.82);
+        setSelectedPhoto(compressed);
+        // Persist immediately to current user session
+        if (currentUser) {
+          await updateCurrentUser({ avatarUrl: compressed });
+        }
+        showToast('Foto carregada com sucesso! Clique em "Salvar Foto" para confirmar.', 'success');
+      } catch (err) {
+        console.error('Failed to process image:', err);
+        showToast('Erro ao carregar imagem da galeria. Tente outra foto.', 'error');
+      }
     }
   };
 
   const handleSavePhoto = async () => {
-    const photoToSave = selectedPhoto.trim() || currentUser?.avatarUrl || SAMPLE_AVATARS[0];
+    const photoToSave = selectedPhoto.trim() || currentUser?.avatarUrl || '';
+    if (!photoToSave) {
+      showToast('Por favor, tire uma foto ou escolha uma foto da sua galeria antes de salvar.', 'error');
+      return;
+    }
     setIsSavingPhoto(true);
     try {
       await updateCurrentUser({ avatarUrl: photoToSave });
       await syncWithServer();
-      showToast('Foto de perfil salva com sucesso! Bem-vindo ao Vendi Patrocínio! 🎉', 'success');
+      showToast('Foto de perfil salva com sucesso! Agora você já pode publicar anúncios! 🎉', 'success');
       setIsAuthModalOpen(false);
     } catch (e) {
       showToast('Erro ao salvar foto de perfil. Tente novamente.', 'error');
@@ -367,7 +388,7 @@ export const AuthModal: React.FC = () => {
 
   const handleSkipPhoto = () => {
     setIsAuthModalOpen(false);
-    showToast('Tudo pronto! Você pode adicionar ou alterar sua foto no seu Perfil a qualquer momento.', 'info');
+    showToast('Atenção: você precisará adicionar uma foto de perfil antes de publicar qualquer anúncio.', 'info');
   };
 
   // Filter neighborhoods safely by search
@@ -701,35 +722,46 @@ export const AuthModal: React.FC = () => {
 
               {/* 3. Foto de Perfil */}
               <div>
-                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
-                  3. Foto de Perfil *
-                </label>
-                <div className="flex items-center gap-3">
-                  <img
-                    src={avatarUrl}
-                    alt="Preview de perfil"
-                    className="w-14 h-14 rounded-2xl object-cover border-2 border-[#F95700] shadow-sm flex-shrink-0"
-                  />
-                  <div className="flex-1">
-                    <p className="text-[11px] text-gray-500 mb-1.5 font-medium">
-                      Escolha uma foto da galeria ou digite uma URL:
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider">
+                    3. Foto de Perfil
+                  </label>
+                  <span className="text-[10px] font-bold text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full border border-orange-200">
+                    Obrigatória para Anunciar
+                  </span>
+                </div>
+
+                <div className="p-3 bg-orange-50/50 rounded-2xl border border-orange-200/80 flex items-center gap-3">
+                  <div className="w-14 h-14 rounded-2xl overflow-hidden border-2 border-[#F95700] shadow-sm bg-white flex items-center justify-center flex-shrink-0">
+                    {avatarUrl ? (
+                      <img
+                        src={avatarUrl}
+                        alt="Preview de perfil"
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <Camera className="w-6 h-6 text-orange-400" />
+                    )}
+                  </div>
+
+                  <div className="flex-1 space-y-1">
+                    <label
+                      htmlFor="reg-photo-upload-input"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-300 hover:border-[#F95700] hover:bg-orange-50/50 text-gray-800 rounded-xl text-xs font-bold cursor-pointer transition-all shadow-2xs active:scale-95"
+                    >
+                      <Upload className="w-3.5 h-3.5 text-[#F95700]" />
+                      <span>{avatarUrl ? 'Trocar foto da galeria' : 'Escolher foto da galeria'}</span>
+                      <input
+                        id="reg-photo-upload-input"
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handleRegistrationPhotoUpload}
+                      />
+                    </label>
+                    <p className="text-[10px] text-gray-500">
+                      {avatarUrl ? 'Foto selecionada com sucesso!' : 'Tire uma foto ou escolha da galeria'}
                     </p>
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      {SAMPLE_AVATARS.map((url, idx) => (
-                        <button
-                          key={idx}
-                          type="button"
-                          onClick={() => setAvatarUrl(url)}
-                          className={`w-7 h-7 rounded-full overflow-hidden border-2 cursor-pointer transition-all ${
-                            avatarUrl === url
-                              ? 'border-[#F95700] scale-110 shadow-sm'
-                              : 'border-transparent opacity-70 hover:opacity-100'
-                          }`}
-                        >
-                          <img src={url} alt={`Avatar ${idx + 1}`} className="w-full h-full object-cover" />
-                        </button>
-                      ))}
-                    </div>
                   </div>
                 </div>
               </div>
@@ -752,7 +784,7 @@ export const AuthModal: React.FC = () => {
                   />
                 </div>
                 <p className="text-[10px] text-gray-400 mt-1">
-                  Enviaremos um código de verificação para este e-mail para validar o cadastro.
+                  Seu e-mail para acesso seguro, notificações e recuperação de senha.
                 </p>
               </div>
 
@@ -1063,7 +1095,7 @@ export const AuthModal: React.FC = () => {
                 ) : (
                   <UserPlus className="w-4 h-4" />
                 )}
-                <span>Criar minha conta e verificar e-mail</span>
+                <span>Criar minha conta</span>
               </button>
 
               <div className="pt-2 text-center">
@@ -1250,9 +1282,9 @@ export const AuthModal: React.FC = () => {
               <div className="flex flex-col items-center justify-center pt-1">
                 <div className="relative group">
                   <div className="w-28 h-28 sm:w-32 sm:h-32 rounded-full overflow-hidden border-4 border-[#F95700] shadow-xl bg-orange-50 flex items-center justify-center transition-transform hover:scale-105">
-                    {selectedPhoto ? (
+                    {selectedPhoto || currentUser?.avatarUrl ? (
                       <img
-                        src={selectedPhoto}
+                        src={selectedPhoto || currentUser?.avatarUrl}
                         alt="Prévia da sua foto"
                         className="w-full h-full object-cover"
                       />
@@ -1265,7 +1297,7 @@ export const AuthModal: React.FC = () => {
                   <label
                     htmlFor="post-reg-file-camera"
                     className="absolute bottom-0 right-0 bg-[#F95700] hover:bg-[#E04E00] text-white p-2.5 rounded-full shadow-lg cursor-pointer border-2 border-white transition-all active:scale-95"
-                    title="Tirar foto ou escolher do celular"
+                    title="Tirar foto ou escolher da galeria"
                   >
                     <Camera className="w-4 h-4" />
                     <input
@@ -1288,14 +1320,25 @@ export const AuthModal: React.FC = () => {
                 </div>
               </div>
 
-              {/* Upload from Mobile / PC Button */}
+              {/* Requirement Alert */}
+              <div className="p-3 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-start gap-2.5 text-left">
+                <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-bold text-amber-950">A foto de perfil é obrigatória para anunciar</p>
+                  <p className="text-[11px] text-amber-800 mt-0.5">
+                    Para segurança da comunidade e de compradores em Patrocínio, todo anunciante deve ter uma foto de perfil.
+                  </p>
+                </div>
+              </div>
+
+              {/* Upload from Mobile Gallery / PC Button */}
               <div className="bg-orange-50/70 p-4 rounded-2xl border border-orange-200/70 space-y-2">
                 <label
                   htmlFor="post-reg-file-btn"
-                  className="w-full py-3 px-4 rounded-xl bg-white border-2 border-dashed border-orange-300 hover:border-[#F95700] hover:bg-orange-50/40 text-gray-800 font-bold text-xs flex items-center justify-center gap-2 cursor-pointer transition-all shadow-2xs"
+                  className="w-full py-3.5 px-4 rounded-xl bg-white border-2 border-dashed border-orange-300 hover:border-[#F95700] hover:bg-orange-50/40 text-gray-800 font-bold text-xs flex items-center justify-center gap-2 cursor-pointer transition-all shadow-2xs active:scale-98"
                 >
                   <Upload className="w-4 h-4 text-[#F95700]" />
-                  <span>Escolher foto do celular ou computador</span>
+                  <span>Escolher foto da galeria ou tirar foto</span>
                   <input
                     id="post-reg-file-btn"
                     type="file"
@@ -1305,72 +1348,8 @@ export const AuthModal: React.FC = () => {
                   />
                 </label>
                 <p className="text-[11px] text-gray-500">
-                  Tire uma foto com a câmera ou escolha da sua galeria (JPG, PNG ou WEBP)
+                  Selecione uma foto sua nítida (JPG, PNG ou WEBP)
                 </p>
-              </div>
-
-              {/* Preset Avatars Grid */}
-              <div className="text-left">
-                <p className="text-xs font-bold text-gray-700 mb-2 flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-[#F95700]" />
-                  <span>Ou selecione um avatar rápido:</span>
-                </p>
-                <div className="grid grid-cols-5 gap-2">
-                  {SAMPLE_AVATARS.map((url, idx) => (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => setSelectedPhoto(url)}
-                      className={`relative rounded-2xl overflow-hidden aspect-square border-2 cursor-pointer transition-all hover:scale-105 ${
-                        selectedPhoto === url
-                          ? 'border-[#F95700] ring-3 ring-orange-200 shadow-md scale-105'
-                          : 'border-gray-200 opacity-60 hover:opacity-100'
-                      }`}
-                    >
-                      <img src={url} alt={`Opção ${idx + 1}`} className="w-full h-full object-cover" />
-                      {selectedPhoto === url && (
-                        <div className="absolute inset-0 bg-[#F95700]/25 flex items-center justify-center">
-                          <CheckCircle2 className="w-5 h-5 text-white drop-shadow-md" />
-                        </div>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Optional URL input */}
-              <div className="text-left">
-                <details className="text-xs text-gray-500 cursor-pointer">
-                  <summary className="font-semibold hover:text-[#F95700] transition-colors">
-                    Prefere colar um link de imagem da internet?
-                  </summary>
-                  <div className="mt-2 flex gap-2">
-                    <input
-                      type="url"
-                      value={customPhotoUrl}
-                      onChange={(e) => {
-                        setCustomPhotoUrl(e.target.value);
-                        if (e.target.value.trim().startsWith('http')) {
-                          setSelectedPhoto(e.target.value.trim());
-                        }
-                      }}
-                      placeholder="https://exemplo.com/sua-foto.jpg"
-                      className="flex-1 px-3 py-2 text-xs rounded-xl border border-gray-200 bg-white"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (customPhotoUrl.trim()) {
-                          setSelectedPhoto(customPhotoUrl.trim());
-                          showToast('Foto do link aplicada!', 'info');
-                        }
-                      }}
-                      className="px-3 py-2 bg-orange-100 hover:bg-orange-200 text-[#F95700] font-bold text-xs rounded-xl cursor-pointer"
-                    >
-                      Aplicar
-                    </button>
-                  </div>
-                </details>
               </div>
 
               {/* Action Buttons */}
@@ -1379,15 +1358,15 @@ export const AuthModal: React.FC = () => {
                   type="button"
                   id="btn-save-post-reg-photo"
                   onClick={handleSavePhoto}
-                  disabled={isSavingPhoto}
-                  className="w-full py-3.5 px-6 rounded-2xl bg-[#F95700] hover:bg-[#E04E00] active:scale-98 text-white font-extrabold text-sm shadow-lg shadow-orange-500/25 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-70"
+                  disabled={isSavingPhoto || (!selectedPhoto && !currentUser?.avatarUrl)}
+                  className="w-full py-3.5 px-6 rounded-2xl bg-[#F95700] hover:bg-[#E04E00] active:scale-98 text-white font-extrabold text-sm shadow-lg shadow-orange-500/25 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   {isSavingPhoto ? (
                     <RefreshCw className="w-4 h-4 animate-spin" />
                   ) : (
                     <CheckCheck className="w-4 h-4" />
                   )}
-                  <span>Salvar Foto e Começar a Usar o Vendi</span>
+                  <span>Salvar Foto e Começar a Usar</span>
                 </button>
 
                 <button
@@ -1395,7 +1374,7 @@ export const AuthModal: React.FC = () => {
                   onClick={handleSkipPhoto}
                   className="w-full py-2 text-xs font-semibold text-gray-500 hover:text-gray-800 transition-colors cursor-pointer"
                 >
-                  Pular por enquanto (usar avatar padrão)
+                  Continuar sem foto por enquanto (não poderá anunciar)
                 </button>
               </div>
             </div>

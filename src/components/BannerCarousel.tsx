@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext';
 import { ChevronLeft, ChevronRight, Sparkles, ArrowRight } from 'lucide-react';
 
 export const BannerCarousel: React.FC = () => {
-  const { banners, setSelectedCategory, setActiveView, setIsPublishModalOpen, currentUser, setIsAuthModalOpen } = useApp();
+  const { banners, setSelectedCategory, setActiveView, startPublishFlow } = useApp();
   const activeBanners = banners.filter(b => b.active);
   const [currentIndex, setCurrentIndex] = useState(0);
 
@@ -30,11 +30,7 @@ export const BannerCarousel: React.FC = () => {
       setSelectedCategory(banner.categoryId);
       setActiveView('home');
     } else if (banner.id === 'b3') {
-      if (!currentUser) {
-        setIsAuthModalOpen(true);
-      } else {
-        setIsPublishModalOpen(true);
-      }
+      startPublishFlow();
     } else {
       // General action
       const section = document.getElementById('destaques-section');

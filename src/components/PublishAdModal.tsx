@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { AdCondition } from '../types';
+import { compressImage } from '../utils/imageUtils';
 import {
   X,
   Upload,
@@ -29,6 +30,8 @@ export const PublishAdModal: React.FC = () => {
   const {
     isPublishModalOpen,
     setIsPublishModalOpen,
+    setIsAuthModalOpen,
+    setAuthModalMode,
     categories,
     currentUser,
     neighborhoods,
@@ -58,7 +61,7 @@ export const PublishAdModal: React.FC = () => {
 
   if (!isPublishModalOpen) return null;
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
@@ -70,20 +73,15 @@ export const PublishAdModal: React.FC = () => {
 
     const filesToProcess = Array.from(files).slice(0, remainingSlots) as File[];
 
-    filesToProcess.forEach((file: File) => {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        if (event.target?.result) {
-          setPhotos((prev) => {
-            if (prev.length < 10) {
-              return [...prev, event.target?.result as string];
-            }
-            return prev;
-          });
-        }
-      };
-      reader.readAsDataURL(file);
-    });
+    showToast('Otimizando fotos para envio...', 'info');
+    for (const file of filesToProcess) {
+      try {
+        const compressed = await compressImage(file, 900, 900, 0.82);
+        setPhotos((prev) => (prev.length < 10 ? [...prev, compressed] : prev));
+      } catch (err) {
+        console.error('Failed to compress ad photo:', err);
+      }
+    }
   };
 
   const handleAddSamplePhoto = (url: string) => {
@@ -112,7 +110,17 @@ export const PublishAdModal: React.FC = () => {
     e.preventDefault();
 
     if (!currentUser) {
+      setAuthModalMode('login');
+      setIsAuthModalOpen(true);
       showToast('Faça login para publicar um anúncio.', 'error');
+      return;
+    }
+
+    if (!currentUser.avatarUrl || currentUser.avatarUrl.trim() === '') {
+      showToast('Você precisa adicionar uma foto de perfil antes de anunciar!', 'error');
+      setIsPublishModalOpen(false);
+      setAuthModalMode('set_photo');
+      setIsAuthModalOpen(true);
       return;
     }
 

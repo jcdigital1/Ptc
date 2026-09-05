@@ -34,7 +34,7 @@ export const HomePage: React.FC = () => {
     resetFilters,
     categories,
     neighborhoods,
-    openBeforePublishModal
+    startPublishFlow
   } = useApp();
 
   const [localNeighborhoodTab, setLocalNeighborhoodTab] = useState<string>('Centro');
@@ -334,7 +334,7 @@ export const HomePage: React.FC = () => {
                 Seja o primeiro morador ou comerciante a divulgar seus produtos e serviços na sua cidade! É 100% grátis e a negociação é feita direto no WhatsApp.
               </p>
               <button
-                onClick={openBeforePublishModal}
+                onClick={startPublishFlow}
                 className="bg-[#F95700] hover:bg-[#E04E00] text-white font-extrabold px-8 py-3.5 rounded-2xl text-sm shadow-lg shadow-orange-500/25 transition-all inline-flex items-center gap-2 cursor-pointer hover:scale-102 active:scale-98"
               >
                 <Plus className="w-5 h-5" />
