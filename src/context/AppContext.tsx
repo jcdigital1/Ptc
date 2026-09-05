@@ -1118,47 +1118,72 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const markAsSold = async (id: string) => {
     if (!currentUser) return;
+
+    // 1. Automatically delete the ad document from Firestore
     try {
-      await updateDoc(doc(db, 'ads', id), { status: 'sold' });
+      await deleteDoc(doc(db, 'ads', id));
     } catch (fsErr) {
-      handleFirestoreError(fsErr, OperationType.UPDATE, `ads/${id}`);
+      handleFirestoreError(fsErr, OperationType.DELETE, `ads/${id}`);
     }
 
+    // 2. Track record in removedAdsHistory
+    const target = ads.find((a) => a.id === id);
+    if (target) {
+      const removalRecord: RemovedAdRecord = {
+        id: 'rem-' + Date.now(),
+        adId: target.id,
+        title: target.title,
+        sellerName: target.sellerName,
+        sellerUsername: target.sellerUsername,
+        price: target.price,
+        reason: 'Produto vendido (apagado automaticamente)',
+        removedAt: 'Hoje',
+        removedBy: currentUser.name
+      };
+      setRemovedAdsHistory((prev) => [removalRecord, ...prev]);
+    }
+
+    // 3. Notify backend server to record the sale metric and delete from server db
     try {
       await fetch(`/api/ads/${id}/status`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'sold', userId: currentUser.id })
       });
+      await fetch(`/api/ads/${id}?userId=${currentUser.id}`, { method: 'DELETE' });
     } catch (e) {
-      console.error('Error marking as sold:', e);
+      console.error('Error recording sold ad on server:', e);
     }
 
-    setAds((prev) =>
-      prev.map((ad) => {
-        if (ad.id === id) {
-          return { ...ad, status: 'sold' };
-        }
-        return ad;
-      })
-    );
+    // 4. Automatically remove the ad from local state so it disappears instantly
+    setAds((prev) => {
+      const updated = prev.filter((ad) => ad.id !== id);
+      try {
+        localStorage.setItem('vendi_ads', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
 
-    setCurrentUser((prev) =>
-      prev
-        ? {
-            ...prev,
-            activeAdsCount: Math.max(0, prev.activeAdsCount - 1),
-            soldAdsCount: prev.soldAdsCount + 1
-          }
-        : null
-    );
+    // 5. Update user sales metrics
+    const updatedUser: User = {
+      ...currentUser,
+      activeAdsCount: Math.max(0, currentUser.activeAdsCount - 1),
+      soldAdsCount: (currentUser.soldAdsCount || 0) + 1
+    };
+
+    setCurrentUser(updatedUser);
+    setUsers((prev) => prev.map((u) => (u.id === updatedUser.id ? updatedUser : u)));
+    try {
+      localStorage.setItem('vendi_user_session', JSON.stringify(updatedUser));
+      await setDoc(doc(db, 'users', updatedUser.id), updatedUser, { merge: true });
+    } catch (e) {}
 
     setMetrics((prev) => ({
       ...prev,
       totalSold: prev.totalSold + 1
     }));
 
-    showToast('Parabéns pela venda! O anúncio foi marcado como vendido e o WhatsApp desativado.', 'success');
+    showToast('🎉 Parabéns pela venda! O anúncio foi marcado como vendido e apagado automaticamente.', 'success');
   };
 
   const deleteAd = async (id: string) => {

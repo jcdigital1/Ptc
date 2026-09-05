@@ -693,12 +693,17 @@ async function startServer() {
         seller.soldAdsCount = (seller.soldAdsCount || 0) + 1;
       }
       db.metrics.totalSold = (db.metrics.totalSold || 0) + 1;
+      
+      // Automatic removal: ad is erased from database when marked as sold
+      const adIndex = db.ads.findIndex(a => a.id === id);
+      if (adIndex !== -1) {
+        db.ads.splice(adIndex, 1);
+      }
+      saveDatabase();
+      broadcastSSE('AD_DELETED', { id, reason: 'sold' });
+
+      return res.json({ success: true, message: 'Anúncio marcado como vendido e apagado automaticamente.' });
     }
-
-    saveDatabase();
-    broadcastSSE('AD_UPDATED', ad);
-
-    return res.json({ success: true, ad });
   });
 
   // Delete an ad

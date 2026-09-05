@@ -72,7 +72,7 @@ export const SellerDashboard: React.FC = () => {
 
   const totalViews = userAds.reduce((sum, a) => sum + (a.viewsCount || 0), 0);
   const totalWhatsAppClicks = userAds.reduce((sum, a) => sum + (a.whatsappClicksCount || 0), 0);
-  const soldCount = userAds.filter((a) => a.status === 'sold').length;
+  const soldCount = currentUser.soldAdsCount || 0;
   const activeCount = userAds.filter((a) => a.status === 'active').length;
 
   const handleShareAd = (ad: Ad) => {
@@ -393,14 +393,14 @@ export const SellerDashboard: React.FC = () => {
             </h3>
 
             <p className="text-xs text-gray-600 text-center mb-6 leading-relaxed">
-              Ao confirmar, o anúncio de <span className="font-bold">"{adToMarkAsSold.title}"</span> será desativado e removido das buscas e carrosséis públicos. Novos contatos pelo WhatsApp serão impedidos, e ele ficará guardado no seu histórico de vendas.
+              Ao confirmar, o anúncio de <span className="font-bold">"{adToMarkAsSold.title}"</span> será marcado como vendido e <span className="font-bold text-gray-900">apagado automaticamente</span> da plataforma e das buscas públicas.
             </p>
 
             <div className="grid grid-cols-2 gap-3">
               <button
                 type="button"
                 onClick={() => setAdToMarkAsSold(null)}
-                className="py-2.5 px-4 rounded-xl border border-gray-300 font-bold text-gray-700 hover:bg-gray-50 text-sm"
+                className="py-2.5 px-4 rounded-xl border border-gray-300 font-bold text-gray-700 hover:bg-gray-50 text-sm cursor-pointer"
               >
                 Cancelar
               </button>
@@ -408,9 +408,9 @@ export const SellerDashboard: React.FC = () => {
               <button
                 type="button"
                 onClick={confirmMarkAsSold}
-                className="py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm shadow-md shadow-emerald-600/20"
+                className="py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm shadow-md shadow-emerald-600/20 cursor-pointer"
               >
-                Sim, marcar como vendido
+                Sim, marcar e apagar
               </button>
             </div>
           </div>
