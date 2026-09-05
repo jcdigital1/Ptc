@@ -1,0 +1,6 @@
+{
+  "name": "Vendi Patrocínio",
+  "description": "O marketplace local de compra e venda da cidade de Patrocínio - MG. Negocie direto pelo WhatsApp sem taxas.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
