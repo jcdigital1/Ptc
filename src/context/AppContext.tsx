@@ -23,6 +23,16 @@ import {
 import { TermsTab } from '../components/TermsAndPoliciesModal';
 import { buildWhatsAppLink } from '../utils/whatsapp';
 import { calculateAgeFromDate } from '../utils/dateUtils';
+import {
+  collection,
+  doc,
+  setDoc,
+  deleteDoc,
+  updateDoc,
+  onSnapshot,
+  increment
+} from 'firebase/firestore';
+import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 
 export const CURRENT_TERMS_VERSION = 'v2.1';
 export const CURRENT_PRIVACY_VERSION = 'v2.1';
@@ -403,11 +413,97 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, []);
 
-  // Sync on mount
+  // Cloud Sync on mount with Firebase Firestore (real-time cross-device sync)
   useEffect(() => {
+    // 1. Listen to ads in Firestore (syncs instantaneously across all phones & devices)
+    const unsubscribeAds = onSnapshot(
+      collection(db, 'ads'),
+      (snapshot) => {
+        if (!snapshot.empty) {
+          const cloudAds: Ad[] = [];
+          snapshot.forEach((d) => {
+            const data = d.data() as Ad;
+            if (data && data.id) {
+              cloudAds.push(data);
+            }
+          });
+          cloudAds.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+          setAds(cloudAds);
+          try {
+            localStorage.setItem('vendi_ads', JSON.stringify(cloudAds));
+          } catch (e) {}
+        } else {
+          // Firestore is empty on cold start: seed initial ads
+          INITIAL_ADS.forEach((initAd) => {
+            setDoc(doc(db, 'ads', initAd.id), initAd).catch(() => {});
+          });
+        }
+      },
+      (error) => {
+        handleFirestoreError(error, OperationType.GET, 'ads');
+      }
+    );
+
+    // 2. Listen to users in Firestore
+    const unsubscribeUsers = onSnapshot(
+      collection(db, 'users'),
+      (snapshot) => {
+        if (!snapshot.empty) {
+          const cloudUsers: User[] = [];
+          snapshot.forEach((d) => {
+            const data = d.data() as User;
+            if (data && data.id) {
+              cloudUsers.push(data);
+            }
+          });
+          setUsers(cloudUsers);
+          try {
+            localStorage.setItem('vendi_users', JSON.stringify(cloudUsers));
+          } catch (e) {}
+        } else {
+          INITIAL_USERS.forEach((initUser) => {
+            setDoc(doc(db, 'users', initUser.id), initUser).catch(() => {});
+          });
+        }
+      },
+      (error) => {
+        handleFirestoreError(error, OperationType.GET, 'users');
+      }
+    );
+
+    // 3. Listen to neighborhoods in Firestore
+    const unsubscribeNeighborhoods = onSnapshot(
+      collection(db, 'neighborhoods'),
+      (snapshot) => {
+        if (!snapshot.empty) {
+          const cloudNb: NeighborhoodItem[] = [];
+          snapshot.forEach((d) => {
+            const data = d.data() as NeighborhoodItem;
+            if (data && data.id) {
+              cloudNb.push(data);
+            }
+          });
+          cloudNb.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+          setNeighborhoods(cloudNb);
+          try {
+            localStorage.setItem('vendi_neighborhoods', JSON.stringify(cloudNb));
+          } catch (e) {}
+        }
+      },
+      (error) => {
+        handleFirestoreError(error, OperationType.GET, 'neighborhoods');
+      }
+    );
+
     syncWithServer();
     // Record page visit on server
     fetch('/api/metrics/visit', { method: 'POST' }).catch(() => {});
+
+    return () => {
+      unsubscribeAds();
+      unsubscribeUsers();
+      unsubscribeNeighborhoods();
+    };
   }, [syncWithServer]);
 
   // Connect to Server-Sent Events (SSE) for instant real-time synchronization
@@ -822,8 +918,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return null;
     }
 
-    // Helper to create and persist ad locally in case of static hosting (e.g. Vercel) or network issues
-    const createAndPersistLocalAd = (): Ad => {
+    // Helper to create and persist ad locally & to Firebase Firestore in real time
+    const createAndPersistLocalAd = async (): Promise<Ad> => {
       const localAd: Ad = {
         id: 'ad_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
         title: adData.title.trim(),
@@ -850,6 +946,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         whatsappClicksCount: 0
       };
 
+      // 1. Immediately persist to Firebase Firestore so all other devices receive this ad
+      try {
+        await setDoc(doc(db, 'ads', localAd.id), localAd);
+      } catch (fsErr) {
+        handleFirestoreError(fsErr, OperationType.WRITE, `ads/${localAd.id}`);
+      }
+
       setAds((prev) => {
         const updated = [localAd, ...prev.filter((a) => a.id !== localAd.id)];
         try {
@@ -870,6 +973,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         } catch (err) {}
         return updatedUsers;
       });
+
+      // Update user in Firestore
+      try {
+        await setDoc(doc(db, 'users', updatedUser.id), updatedUser, { merge: true });
+      } catch (fsErr) {
+        handleFirestoreError(fsErr, OperationType.WRITE, `users/${updatedUser.id}`);
+      }
 
       try {
         localStorage.setItem('vendi_user_session', JSON.stringify(updatedUser));
@@ -940,6 +1050,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const responseData = await res.json();
         const newAd: Ad = responseData.ad;
 
+        // Persist to Firestore to ensure instant cross-device delivery
+        try {
+          await setDoc(doc(db, 'ads', newAd.id), newAd);
+          if (responseData.seller) {
+            await setDoc(doc(db, 'users', responseData.seller.id), responseData.seller, { merge: true });
+          }
+        } catch (fsErr) {
+          handleFirestoreError(fsErr, OperationType.WRITE, `ads/${newAd.id}`);
+        }
+
         setAds((prev) => {
           const updated = [newAd, ...prev.filter((a) => a.id !== newAd.id)];
           try {
@@ -986,13 +1106,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const updateAd = (id: string, adData: Partial<Ad>) => {
+  const updateAd = async (id: string, adData: Partial<Ad>) => {
     setAds((prev) => prev.map((ad) => (ad.id === id ? { ...ad, ...adData } : ad)));
+    try {
+      await updateDoc(doc(db, 'ads', id), adData);
+    } catch (fsErr) {
+      handleFirestoreError(fsErr, OperationType.UPDATE, `ads/${id}`);
+    }
     showToast('Anúncio atualizado com sucesso!');
   };
 
   const markAsSold = async (id: string) => {
     if (!currentUser) return;
+    try {
+      await updateDoc(doc(db, 'ads', id), { status: 'sold' });
+    } catch (fsErr) {
+      handleFirestoreError(fsErr, OperationType.UPDATE, `ads/${id}`);
+    }
+
     try {
       await fetch(`/api/ads/${id}/status`, {
         method: 'PUT',
@@ -1032,6 +1163,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const deleteAd = async (id: string) => {
     if (!currentUser) return;
+    try {
+      await deleteDoc(doc(db, 'ads', id));
+    } catch (fsErr) {
+      handleFirestoreError(fsErr, OperationType.DELETE, `ads/${id}`);
+    }
+
     const target = ads.find((a) => a.id === id);
     if (target) {
       const removalRecord: RemovedAdRecord = {
@@ -1059,7 +1196,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast('Anúncio excluído com sucesso.', 'info');
   };
 
-  const adminRemoveAd = (adId: string, reason: string) => {
+  const adminRemoveAd = async (adId: string, reason: string) => {
+    try {
+      await deleteDoc(doc(db, 'ads', adId));
+    } catch (fsErr) {
+      handleFirestoreError(fsErr, OperationType.DELETE, `ads/${adId}`);
+    }
+
     const target = ads.find((a) => a.id === adId);
     if (!target) return;
 
@@ -1320,6 +1463,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
     }
 
+    // Persist user to Firestore so all devices have access to the account and seller profile
+    try {
+      await setDoc(doc(db, 'users', createdUser.id), createdUser);
+    } catch (fsErr) {
+      handleFirestoreError(fsErr, OperationType.WRITE, `users/${createdUser.id}`);
+    }
+
     // Immediately log in user
     setCurrentUser(createdUser);
     setUsers((prev) => [createdUser!, ...prev.filter((u) => u.id !== createdUser!.id && u.email !== createdUser!.email)]);
@@ -1453,6 +1603,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const updateCurrentUser = async (userData: Partial<User>) => {
     if (!currentUser) return;
+    const updated = { ...currentUser, ...userData };
+
+    // Persist to Firestore
+    try {
+      await setDoc(doc(db, 'users', updated.id), updated, { merge: true });
+    } catch (fsErr) {
+      handleFirestoreError(fsErr, OperationType.WRITE, `users/${updated.id}`);
+    }
+
     try {
       const res = await fetch('/api/users/profile', {
         method: 'PUT',
@@ -1475,7 +1634,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     } catch (e) {}
 
-    const updated = { ...currentUser, ...userData };
     setCurrentUser(updated);
     setUsers((prev) => prev.map((u) => (u.id === updated.id ? updated : u)));
     try {

@@ -1,0 +1,57 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128;
+    }
+
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Marketplace Ads - Publicly readable for all Patrocínio shoppers & accounts
+    match /ads/{adId} {
+      allow read: if true;
+      allow create: if isValidId(adId)
+        && request.resource.data.title is string
+        && request.resource.data.title.size() > 0
+        && request.resource.data.title.size() <= 150
+        && request.resource.data.price is number
+        && request.resource.data.price >= 0;
+      allow update: if isValidId(adId);
+      allow delete: if isValidId(adId);
+    }
+
+    // Registered Users & Sellers
+    match /users/{userId} {
+      allow read: if true;
+      allow create: if isValidId(userId)
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0;
+      allow update: if isValidId(userId);
+      allow delete: if isValidId(userId);
+    }
+
+    // Neighborhoods directory
+    match /neighborhoods/{neighborhoodId} {
+      allow read: if true;
+      allow write: if isValidId(neighborhoodId);
+    }
+
+    // Safety and Moderation Reports
+    match /reports/{reportId} {
+      allow read: if true;
+      allow create: if isValidId(reportId)
+        && request.resource.data.reason is string;
+      allow update, delete: if isValidId(reportId);
+    }
+
+    // Aggregated Metrics
+    match /metrics/{metricId} {
+      allow read, write: if isValidId(metricId);
+    }
+  }
+}

@@ -1,0 +1,108 @@
+{
+  "entities": {
+    "Ad": {
+      "title": "Ad",
+      "description": "Marketplace listing in Vendi Patrocínio",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string", "maxLength": 150 },
+        "description": { "type": "string", "maxLength": 5000 },
+        "price": { "type": "number" },
+        "category": { "type": "string", "maxLength": 50 },
+        "condition": { "type": "string", "maxLength": 50 },
+        "neighborhood": { "type": "string", "maxLength": 100 },
+        "photos": { "type": "array" },
+        "sellerId": { "type": "string", "maxLength": 128 },
+        "sellerName": { "type": "string", "maxLength": 100 },
+        "sellerUsername": { "type": "string", "maxLength": 50 },
+        "sellerAvatar": { "type": "string" },
+        "whatsapp": { "type": "string", "maxLength": 30 },
+        "createdAt": { "type": "string" },
+        "views": { "type": "number" },
+        "whatsappClicks": { "type": "number" },
+        "status": { "type": "string", "enum": ["active", "sold", "inactive"] }
+      },
+      "required": ["id", "title", "price", "category", "sellerId"]
+    },
+    "User": {
+      "title": "User",
+      "description": "Registered user / seller in Vendi Patrocínio",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string", "maxLength": 100 },
+        "username": { "type": "string", "maxLength": 50 },
+        "email": { "type": "string", "maxLength": 150 },
+        "phone": { "type": "string", "maxLength": 30 },
+        "whatsapp": { "type": "string", "maxLength": 30 },
+        "neighborhood": { "type": "string", "maxLength": 100 },
+        "avatarUrl": { "type": "string" },
+        "joinedDate": { "type": "string" },
+        "activeAdsCount": { "type": "number" },
+        "soldAdsCount": { "type": "number" },
+        "role": { "type": "string" },
+        "isBlocked": { "type": "boolean" },
+        "isWhatsAppVerified": { "type": "boolean" }
+      },
+      "required": ["id", "name", "username"]
+    },
+    "Neighborhood": {
+      "title": "Neighborhood",
+      "description": "Patrocínio neighborhood directory item",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string", "maxLength": 100 },
+        "adsCount": { "type": "number" }
+      },
+      "required": ["id", "name"]
+    },
+    "Report": {
+      "title": "Report",
+      "description": "Safety report for an ad or user",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "type": "string" },
+        "reason": { "type": "string", "maxLength": 200 },
+        "details": { "type": "string", "maxLength": 2000 },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "type", "reason"]
+    },
+    "PlatformMetrics": {
+      "title": "PlatformMetrics",
+      "description": "Aggregated platform counters",
+      "type": "object",
+      "properties": {
+        "totalAdsCreated": { "type": "number" },
+        "totalVisits": { "type": "number" },
+        "totalWhatsAppClicks": { "type": "number" }
+      }
+    }
+  },
+  "firestore": {
+    "/ads/{adId}": {
+      "schema": { "$ref": "#/entities/Ad" },
+      "description": "Public marketplace listings accessible to all users"
+    },
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "User accounts and seller profiles"
+    },
+    "/neighborhoods/{neighborhoodId}": {
+      "schema": { "$ref": "#/entities/Neighborhood" },
+      "description": "Directory of Patrocínio neighborhoods"
+    },
+    "/reports/{reportId}": {
+      "schema": { "$ref": "#/entities/Report" },
+      "description": "Safety reports submitted by users"
+    },
+    "/metrics/{metricId}": {
+      "schema": { "$ref": "#/entities/PlatformMetrics" },
+      "description": "Platform statistics and visit counters"
+    }
+  }
+}
