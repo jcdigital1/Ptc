@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { Ad, User, Report, Banner, Category } from '../types';
+import { Ad, User, Report, Banner, Category, NeighborhoodItem } from '../types';
 import {
   ShieldAlert,
   BarChart3,
@@ -56,7 +56,7 @@ export const AdminPanel: React.FC = () => {
 
   // Neighborhood management form
   const [newNeighborhoodName, setNewNeighborhoodName] = useState('');
-  const [newNeighborhoodType, setNewNeighborhoodType] = useState<'bairro' | 'distrito' | 'rural' | 'condominio'>('bairro');
+  const [newNeighborhoodType, setNewNeighborhoodType] = useState<NeighborhoodItem['type']>('bairro');
   const [isSavingNeighborhood, setIsSavingNeighborhood] = useState(false);
 
   // New Banner Form State
@@ -804,13 +804,13 @@ export const AdminPanel: React.FC = () => {
               <div>
                 <select
                   value={newNeighborhoodType}
-                  onChange={(e) => setNewNeighborhoodType(e.target.value as any)}
+                  onChange={(e) => setNewNeighborhoodType(e.target.value as NeighborhoodItem['type'])}
                   className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-xs focus:outline-hidden focus:border-[#F95700] bg-white font-medium"
                 >
                   <option value="bairro">Bairro Urbano</option>
                   <option value="distrito">Distrito de Patrocínio</option>
-                  <option value="rural">Zona Rural / Chácara</option>
-                  <option value="condominio">Condomínio Fechado</option>
+                  <option value="zona_rural">Zona Rural / Chácara</option>
+                  <option value="outro">Outro / Condomínio Fechado</option>
                 </select>
               </div>
 

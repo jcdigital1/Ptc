@@ -292,7 +292,9 @@ export const AdDetailModal: React.FC = () => {
                       <div>
                         <h4 className="font-bold text-gray-900 text-sm flex items-center gap-1.5">
                           {selectedAd.sellerName}
-                          <UserCheck className="w-4 h-4 text-emerald-600" title="Vendedor verificado" />
+                          <span title="Vendedor verificado" className="inline-flex">
+                            <UserCheck className="w-4 h-4 text-emerald-600" />
+                          </span>
                         </h4>
                         <p className="text-xs text-gray-500">
                           Na plataforma desde {selectedAd.sellerJoinedDate}

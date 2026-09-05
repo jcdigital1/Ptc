@@ -72,6 +72,10 @@ export interface User {
   suspensionReason?: string;
   role: 'user' | 'admin';
   birthDate?: string;
+  password?: string;
+  rating?: number;
+  totalRatings?: number;
+  memberSince?: string;
   isWhatsAppVerified: boolean;
   isEmailVerified: boolean;
   emailVerificationCode?: string;

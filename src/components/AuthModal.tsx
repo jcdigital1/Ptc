@@ -143,7 +143,16 @@ export const AuthModal: React.FC = () => {
     }
   }, [pendingVerificationEmail, newEmailInput]);
 
-  if (!isAuthModalOpen) return null;
+  // Sync selected photo when entering set_photo mode
+  useEffect(() => {
+    if (authModalMode === 'set_photo') {
+      if (currentUser?.avatarUrl) {
+        setSelectedPhoto(currentUser.avatarUrl);
+      } else if (!selectedPhoto) {
+        setSelectedPhoto(SAMPLE_AVATARS[0]);
+      }
+    }
+  }, [authModalMode, currentUser, selectedPhoto]);
 
   const handleUsernameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let val = e.target.value.trim().toLowerCase();
@@ -324,17 +333,6 @@ export const AuthModal: React.FC = () => {
     }
   };
 
-  // Sync selected photo when entering set_photo mode
-  useEffect(() => {
-    if (authModalMode === 'set_photo') {
-      if (currentUser?.avatarUrl) {
-        setSelectedPhoto(currentUser.avatarUrl);
-      } else if (!selectedPhoto) {
-        setSelectedPhoto(SAMPLE_AVATARS[0]);
-      }
-    }
-  }, [authModalMode, currentUser]);
-
   const handlePostRegFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -372,10 +370,12 @@ export const AuthModal: React.FC = () => {
     showToast('Tudo pronto! Você pode adicionar ou alterar sua foto no seu Perfil a qualquer momento.', 'info');
   };
 
-  // Filter neighborhoods by search
-  const filteredNeighborhoods = neighborhoods
-    .filter((n) => n.active)
-    .filter((n) => n.name.toLowerCase().includes(neighborhoodSearch.toLowerCase()));
+  // Filter neighborhoods safely by search
+  const filteredNeighborhoods = (neighborhoods || [])
+    .filter((n) => n && n.active)
+    .filter((n) => (n.name || '').toLowerCase().includes((neighborhoodSearch || '').toLowerCase()));
+
+  if (!isAuthModalOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs overflow-y-auto animate-in fade-in duration-200">
