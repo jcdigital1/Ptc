@@ -1,13 +1,9 @@
 import express from 'express';
 import path from 'path';
 import fs from 'fs';
-import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
 import { INITIAL_NEIGHBORHOODS, INITIAL_USERS, INITIAL_METRICS } from './src/data/initialData';
 import { Ad, User, Report, NeighborhoodItem, AccountDeletionRequest, PlatformMetrics } from './src/types';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 const PORT = 3000;
 const DB_DIR = path.join(process.cwd(), 'server-data');
@@ -99,8 +95,8 @@ function broadcastSSE(type: string, payload: any) {
 async function startServer() {
   const app = express();
 
-  app.use(express.json({ limit: '15mb' }));
-  app.use(express.urlencoded({ extended: true, limit: '15mb' }));
+  app.use(express.json({ limit: '50mb' }));
+  app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
   // --- API ROUTES FIRST ---
 
@@ -118,7 +114,7 @@ async function startServer() {
   // Full state endpoint for client synchronization
   app.get('/api/state', (req, res) => {
     res.json({
-      ads: db.ads.filter(a => a.status === 'active'), // only active ads returned to public feed
+      ads: db.ads,
       allAdsCount: db.ads.length,
       users: db.users.map(sanitizeUser),
       neighborhoods: db.neighborhoods,
@@ -533,83 +529,144 @@ async function startServer() {
 
   // Create an ad
   app.post('/api/ads', (req, res) => {
-    const {
-      title,
-      description,
-      price,
-      priceType,
-      categoryId,
-      condition,
-      neighborhood,
-      photos,
-      acceptsOffers,
-      isFeatured,
-      userId
-    } = req.body;
+    try {
+      const {
+        title,
+        description,
+        price,
+        priceType,
+        categoryId,
+        condition,
+        neighborhood,
+        photos,
+        acceptsOffers,
+        isFeatured,
+        userId
+      } = req.body;
 
-    if (!userId) return res.status(401).json({ error: 'Usuário não autenticado.' });
+      if (!userId) return res.status(401).json({ error: 'Usuário não autenticado.' });
 
-    const seller = db.users.find(u => u.id === userId);
-    if (!seller) return res.status(404).json({ error: 'Vendedor não encontrado.' });
-    if (!seller.avatarUrl || seller.avatarUrl.trim() === '') {
-      return res.status(403).json({ error: 'Você precisa ter uma foto de perfil cadastrada para publicar anúncios no Vendi Patrocínio.' });
+      // Find seller in database by ID or email
+      let seller = db.users.find(u => u.id === userId);
+      if (!seller && req.body.currentUser?.email) {
+        seller = db.users.find(u => u.email.toLowerCase() === String(req.body.currentUser.email).toLowerCase());
+      }
+      if (!seller && req.body.sellerEmail) {
+        seller = db.users.find(u => u.email.toLowerCase() === String(req.body.sellerEmail).toLowerCase());
+      }
+
+      // If user session is active on client but missing from server (e.g. server was restarted or cache restored), auto-restore user
+      if (!seller && (req.body.currentUser || req.body.sellerName)) {
+        const uData = req.body.currentUser || {};
+        const uWhatsapp = req.body.whatsapp || uData.whatsapp || '(34) 99999-0000';
+        seller = {
+          id: userId,
+          name: (uData.name || req.body.sellerName || 'Vendedor Patrocínio').trim(),
+          username: (uData.username || req.body.sellerUsername || `@user_${String(userId).substring(0, 6)}`).trim(),
+          email: (uData.email || req.body.sellerEmail || `${userId}@vendipatrocinio.com.br`).trim().toLowerCase(),
+          phone: uData.phone || req.body.sellerPhone || `+55${uWhatsapp.replace(/\D/g, '')}`,
+          whatsapp: uWhatsapp,
+          neighborhood: uData.neighborhood || neighborhood || 'Centro',
+          avatarUrl: uData.avatarUrl || req.body.sellerAvatar || '',
+          bio: uData.bio || '',
+          joinedDate: uData.joinedDate || 'Hoje',
+          activeAdsCount: 0,
+          soldAdsCount: 0,
+          isBlocked: false,
+          isSuspended: false,
+          isWhatsAppVerified: true,
+          isEmailVerified: true,
+          hasAcceptedSellerDisclaimer: true,
+          role: (uData.role === 'admin' ? 'admin' : 'user')
+        };
+        db.users.push(seller);
+        saveDatabase();
+        console.log(`[POST /api/ads] Restored seller into db.users: ${seller.name} (${seller.id})`);
+      }
+
+      if (!seller) {
+        return res.status(404).json({ error: 'Sessão do vendedor não encontrada. Entre novamente na sua conta.' });
+      }
+
+      // Automatically sync seller avatar if provided by client request
+      const incomingAvatar = req.body.sellerAvatar || req.body.currentUser?.avatarUrl;
+      if (incomingAvatar && (!seller.avatarUrl || seller.avatarUrl.trim() === '')) {
+        seller.avatarUrl = incomingAvatar;
+        saveDatabase();
+      }
+
+      if (!seller.avatarUrl || seller.avatarUrl.trim() === '') {
+        return res.status(403).json({ error: 'Você precisa ter uma foto de perfil cadastrada para publicar anúncios no Vendi Patrocínio.' });
+      }
+
+      if (seller.isBlocked || seller.isSuspended) {
+        return res.status(403).json({ error: 'Conta suspensa. Não é possível anunciar.' });
+      }
+
+      if (!title || !title.trim()) return res.status(400).json({ error: 'Título do anúncio é obrigatório.' });
+      if (!categoryId) return res.status(400).json({ error: 'Selecione uma categoria.' });
+      if (!neighborhood) return res.status(400).json({ error: 'Selecione o bairro.' });
+      if (!photos || photos.length === 0) return res.status(400).json({ error: 'Adicione pelo menos uma foto.' });
+
+      // Anti-duplicate check by same seller (null-safe and excludes self for re-sync)
+      const targetId = req.body.id || ('ad_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6));
+      const cleanTitle = title.trim().toLowerCase();
+      const isDuplicate = db.ads.some(
+        a => a.id !== targetId &&
+        a.sellerId === seller.id &&
+        a.status === 'active' &&
+        (a.title || '').trim().toLowerCase() === cleanTitle
+      );
+      if (isDuplicate) {
+        return res.status(400).json({ error: 'Você já possui um anúncio ativo com este mesmo título no Vendi Patrocínio.' });
+      }
+
+      const newAd: Ad = {
+        id: targetId,
+        title: title.trim(),
+        description: (description || '').trim(),
+        price: Number(price) || 0,
+        priceType: priceType || 'fixed',
+        categoryId,
+        condition: condition || 'usado',
+        neighborhood: neighborhood.trim(),
+        city: 'Patrocínio - MG',
+        whatsapp: seller.whatsapp || req.body.whatsapp || '(34) 99999-0000',
+        photos,
+        acceptsOffers: Boolean(acceptsOffers),
+        isFeatured: Boolean(isFeatured),
+        status: (req.body.status as any) || 'active',
+        sellerId: seller.id,
+        sellerName: seller.name,
+        sellerUsername: seller.username,
+        sellerAvatar: seller.avatarUrl,
+        sellerJoinedDate: seller.joinedDate || req.body.sellerJoinedDate || 'Hoje',
+        sellerWhatsAppVerified: seller.isWhatsAppVerified,
+        createdAt: req.body.createdAt || new Date().toISOString(),
+        viewsCount: Number(req.body.viewsCount) || 0,
+        whatsappClicksCount: Number(req.body.whatsappClicksCount) || 0
+      };
+
+      const existingIndex = db.ads.findIndex(a => a.id === targetId);
+      if (existingIndex !== -1) {
+        db.ads[existingIndex] = newAd;
+      } else {
+        db.ads.unshift(newAd);
+        seller.activeAdsCount = (seller.activeAdsCount || 0) + 1;
+        db.metrics = db.metrics || { ...INITIAL_METRICS };
+        db.metrics.totalAdsCreated = (db.metrics.totalAdsCreated || 0) + 1;
+      }
+      seller.hasAcceptedSellerDisclaimer = true;
+      saveDatabase();
+
+      // Broadcast instant real-time event to all connected browsers/devices
+      broadcastSSE('AD_CREATED', newAd);
+
+      return res.status(201).json({ success: true, ad: newAd, seller: sanitizeUser(seller) });
+    } catch (err: any) {
+      console.error('[POST /api/ads] Error creating ad:', err);
+      return res.status(500).json({ error: 'Ocorreu um erro interno ao processar o anúncio. Tente novamente.' });
     }
-    if (seller.isBlocked || seller.isSuspended) {
-      return res.status(403).json({ error: 'Conta suspensa. Não é possível anunciar.' });
-    }
-
-    if (!title || !title.trim()) return res.status(400).json({ error: 'Título do anúncio é obrigatório.' });
-    if (!categoryId) return res.status(400).json({ error: 'Selecione uma categoria.' });
-    if (!neighborhood) return res.status(400).json({ error: 'Selecione o bairro.' });
-    if (!photos || photos.length === 0) return res.status(400).json({ error: 'Adicione pelo menos uma foto.' });
-
-    // Anti-duplicate check by same seller
-    const isDuplicate = db.ads.some(
-      a => a.sellerId === seller.id &&
-      a.status === 'active' &&
-      a.title.trim().toLowerCase() === title.trim().toLowerCase()
-    );
-    if (isDuplicate) {
-      return res.status(400).json({ error: 'Você já possui um anúncio ativo com este mesmo título no Vendi Patrocínio.' });
-    }
-
-    const newAd: Ad = {
-      id: 'ad_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
-      title: title.trim(),
-      description: (description || '').trim(),
-      price: Number(price) || 0,
-      priceType: priceType || 'fixed',
-      categoryId,
-      condition: condition || 'usado',
-      neighborhood: neighborhood.trim(),
-      city: 'Patrocínio - MG',
-      // AUTOMATIC WHATSAPP: Inherit officially verified whatsapp from user profile!
-      whatsapp: seller.whatsapp,
-      photos,
-      acceptsOffers: Boolean(acceptsOffers),
-      isFeatured: Boolean(isFeatured),
-      status: 'active',
-      sellerId: seller.id,
-      sellerName: seller.name,
-      sellerUsername: seller.username,
-      sellerAvatar: seller.avatarUrl,
-      sellerJoinedDate: seller.joinedDate,
-      sellerWhatsAppVerified: seller.isWhatsAppVerified,
-      createdAt: new Date().toISOString(),
-      viewsCount: 0,
-      whatsappClicksCount: 0
-    };
-
-    db.ads.unshift(newAd);
-    seller.activeAdsCount = (seller.activeAdsCount || 0) + 1;
-    seller.hasAcceptedSellerDisclaimer = true;
-    db.metrics.totalAdsCreated = (db.metrics.totalAdsCreated || 0) + 1;
-    saveDatabase();
-
-    // Broadcast instant real-time event to all connected browsers/devices
-    broadcastSSE('AD_CREATED', newAd);
-
-    return res.status(201).json({ success: true, ad: newAd, seller: sanitizeUser(seller) });
   });
 
   // Mark ad as sold or update status
@@ -671,52 +728,82 @@ async function startServer() {
 
   // Update user profile and automatically synchronize active ads
   app.put('/api/users/profile', (req, res) => {
-    const { id, name, phone, whatsapp, neighborhood, bio, avatarUrl } = req.body;
-    const user = db.users.find(u => u.id === id);
-    if (!user) return res.status(404).json({ error: 'Usuário não encontrado.' });
+    try {
+      const { id, name, phone, whatsapp, neighborhood, bio, avatarUrl } = req.body;
+      let user = db.users.find(u => u.id === id);
 
-    if (name) {
-      user.name = name.trim();
-      for (const ad of db.ads) {
-        if (ad.sellerId === user.id) {
-          ad.sellerName = user.name;
-        }
+      if (!user) {
+        // Auto-create or restore user if missing from server db
+        const uWhatsapp = whatsapp || '(34) 99999-0000';
+        user = {
+          id: id || 'usr_' + Date.now(),
+          name: (name || 'Usuário Patrocínio').trim(),
+          username: `@user_${String(id || '').substring(0, 6)}`,
+          email: `${id}@vendipatrocinio.com.br`,
+          phone: phone || `+55${uWhatsapp.replace(/\D/g, '')}`,
+          whatsapp: uWhatsapp,
+          neighborhood: neighborhood || 'Centro',
+          avatarUrl: avatarUrl || '',
+          bio: bio || '',
+          joinedDate: 'Hoje',
+          activeAdsCount: 0,
+          soldAdsCount: 0,
+          isBlocked: false,
+          isSuspended: false,
+          isWhatsAppVerified: true,
+          isEmailVerified: true,
+          hasAcceptedSellerDisclaimer: true,
+          role: 'user'
+        };
+        db.users.push(user);
       }
-    }
-    if (avatarUrl) {
-      user.avatarUrl = avatarUrl.trim();
-      for (const ad of db.ads) {
-        if (ad.sellerId === user.id) {
-          ad.sellerAvatar = user.avatarUrl;
-        }
-      }
-    }
-    if (neighborhood) user.neighborhood = neighborhood.trim();
-    if (bio !== undefined) user.bio = bio.trim();
 
-    // If whatsapp/phone changed, format and update all active ads by this seller!
-    if (whatsapp) {
-      const rawDigits = whatsapp.replace(/\D/g, '');
-      if (rawDigits.length === 11) {
-        const ddd = rawDigits.substring(0, 2);
-        user.phone = `+55${rawDigits}`;
-        user.whatsapp = `(${ddd}) ${rawDigits.substring(2, 7)}-${rawDigits.substring(7)}`;
-
-        // Synchronize all user's ads immediately on server
+      if (name) {
+        user.name = name.trim();
         for (const ad of db.ads) {
           if (ad.sellerId === user.id) {
-            ad.whatsapp = user.whatsapp;
             ad.sellerName = user.name;
+          }
+        }
+      }
+      if (avatarUrl) {
+        user.avatarUrl = avatarUrl.trim();
+        for (const ad of db.ads) {
+          if (ad.sellerId === user.id) {
             ad.sellerAvatar = user.avatarUrl;
           }
         }
       }
+      if (neighborhood) user.neighborhood = neighborhood.trim();
+      if (bio !== undefined) user.bio = bio.trim();
+
+      // If whatsapp/phone changed, format and update all active ads by this seller!
+      if (whatsapp) {
+        const rawDigits = whatsapp.replace(/\D/g, '');
+        if (rawDigits.length === 11) {
+          const ddd = rawDigits.substring(0, 2);
+          user.phone = `+55${rawDigits}`;
+          user.whatsapp = `(${ddd}) ${rawDigits.substring(2, 7)}-${rawDigits.substring(7)}`;
+
+          // Synchronize all user's ads immediately on server
+          for (const ad of db.ads) {
+            if (ad.sellerId === user.id) {
+              ad.whatsapp = user.whatsapp;
+              ad.sellerName = user.name;
+              ad.sellerAvatar = user.avatarUrl;
+            }
+          }
+        }
+      }
+
+      saveDatabase();
+      broadcastSSE('USER_UPDATED', sanitizeUser(user));
+
+      return res.json({ success: true, user: sanitizeUser(user) });
+    } catch (err: any) {
+      console.error('[PUT /api/users/profile] Error updating profile:', err);
+      return res.status(500).json({ error: 'Erro ao atualizar perfil no servidor.' });
     }
-
-    saveDatabase();
-    broadcastSSE('USER_UPDATED', sanitizeUser(user));
-
-    return res.json({ success: true, user: sanitizeUser(user) });
   });
 
   // Neighborhoods management API

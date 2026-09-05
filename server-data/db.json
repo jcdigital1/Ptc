@@ -1,0 +1,425 @@
+{
+  "ads": [
+    {
+      "id": "ad_test_f5_persist",
+      "title": "Quadro Caricatura em Moldura",
+      "description": "Quadro tamanho A3 em madeira com vidro protetor",
+      "price": 120,
+      "priceType": "fixed",
+      "categoryId": "servicos",
+      "condition": "usado",
+      "neighborhood": "Centro",
+      "city": "Patrocínio - MG",
+      "whatsapp": "(34) 99999-1111",
+      "photos": [
+        "https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?w=800"
+      ],
+      "acceptsOffers": false,
+      "isFeatured": false,
+      "status": "active",
+      "sellerId": "usr_jc_test",
+      "sellerName": "JC Caricaturas",
+      "sellerUsername": "@user_usr_jc",
+      "sellerAvatar": "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200",
+      "sellerJoinedDate": "Hoje",
+      "sellerWhatsAppVerified": true,
+      "createdAt": "2026-09-05T10:25:40.090Z",
+      "viewsCount": 0,
+      "whatsappClicksCount": 0
+    },
+    {
+      "id": "ad_1788603939942_d815",
+      "title": "Caricatura ao Vivo",
+      "description": "Atendimento em casamentos e formaturas em Patrocinio",
+      "price": 150,
+      "priceType": "fixed",
+      "categoryId": "servicos",
+      "condition": "usado",
+      "neighborhood": "Centro",
+      "city": "Patrocínio - MG",
+      "whatsapp": "(34) 99999-1111",
+      "photos": [
+        "https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?w=800"
+      ],
+      "acceptsOffers": false,
+      "isFeatured": false,
+      "status": "active",
+      "sellerId": "usr_jc_test",
+      "sellerName": "JC Caricaturas",
+      "sellerUsername": "@user_usr_jc",
+      "sellerAvatar": "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200",
+      "sellerJoinedDate": "Hoje",
+      "sellerWhatsAppVerified": true,
+      "createdAt": "2026-09-05T10:25:39.942Z",
+      "viewsCount": 0,
+      "whatsappClicksCount": 0
+    },
+    {
+      "id": "ad_1788603652040_x8n2",
+      "title": "Anuncio de Caricaturas",
+      "description": "Caricaturas personalizadas digitais e impressas para festas e eventos",
+      "price": 80,
+      "priceType": "fixed",
+      "categoryId": "servicos",
+      "condition": "usado",
+      "neighborhood": "Centro",
+      "city": "Patrocínio - MG",
+      "whatsapp": "(34) 99999-1111",
+      "photos": [
+        "https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?w=800"
+      ],
+      "acceptsOffers": false,
+      "isFeatured": false,
+      "status": "active",
+      "sellerId": "usr_jc_test",
+      "sellerName": "JC Caricaturas",
+      "sellerUsername": "@user_usr_jc",
+      "sellerAvatar": "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200",
+      "sellerJoinedDate": "Hoje",
+      "sellerWhatsAppVerified": true,
+      "createdAt": "2026-09-05T10:20:52.040Z",
+      "viewsCount": 0,
+      "whatsappClicksCount": 0
+    }
+  ],
+  "users": [
+    {
+      "id": "user_admin",
+      "name": "Moderação Patrocínio",
+      "username": "@admin",
+      "email": "admin@vendipatrocinio.com.br",
+      "phone": "+5534999990000",
+      "whatsapp": "(34) 99999-0000",
+      "neighborhood": "Centro",
+      "avatarUrl": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80",
+      "bio": "Equipe oficial de suporte e moderação do Vendi Patrocínio.",
+      "joinedDate": "Hoje",
+      "activeAdsCount": 0,
+      "soldAdsCount": 0,
+      "isBlocked": false,
+      "isSuspended": false,
+      "isWhatsAppVerified": true,
+      "isEmailVerified": true,
+      "hasAcceptedSellerDisclaimer": true,
+      "birthDate": "1990-01-01",
+      "termsAcceptance": {
+        "termsVersion": "v2.1",
+        "privacyVersion": "v2.1",
+        "acceptedAt": "2026-09-05T00:58:58.945Z",
+        "ipAddress": "177.136.204.1 (Patrocínio - MG)",
+        "method": "web_checkbox_explicit",
+        "confirmedAge18": true
+      },
+      "role": "admin"
+    },
+    {
+      "id": "usr_1788570125678_b10fc",
+      "name": "Jeann Santtos",
+      "username": "@jeann",
+      "email": "jeanncarllostk00@gmail.com",
+      "phone": "+5534999485542",
+      "whatsapp": "(34) 99948-5542",
+      "neighborhood": "Boa Esperança",
+      "avatarUrl": "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&auto=format&fit=crop&q=80",
+      "bio": "",
+      "joinedDate": "Hoje",
+      "activeAdsCount": 1,
+      "soldAdsCount": 0,
+      "isBlocked": false,
+      "isSuspended": false,
+      "isWhatsAppVerified": true,
+      "isEmailVerified": true,
+      "hasAcceptedSellerDisclaimer": true,
+      "birthDate": "2005-03-02",
+      "role": "user",
+      "termsAcceptance": {
+        "termsVersion": "v2.1",
+        "privacyVersion": "v2.1",
+        "acceptedAt": "2026-09-05T01:02:05.678Z",
+        "ipAddress": "127.0.0.1",
+        "method": "web_registration_form",
+        "confirmedAge18": true
+      }
+    },
+    {
+      "id": "usr_jc_test",
+      "name": "JC Caricaturas",
+      "username": "@user_usr_jc",
+      "email": "jccaricaturasmkt@gmail.com",
+      "phone": "+5534999991111",
+      "whatsapp": "(34) 99999-1111",
+      "neighborhood": "Centro",
+      "avatarUrl": "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200",
+      "bio": "",
+      "joinedDate": "Hoje",
+      "activeAdsCount": 3,
+      "soldAdsCount": 0,
+      "isBlocked": false,
+      "isSuspended": false,
+      "isWhatsAppVerified": true,
+      "isEmailVerified": true,
+      "hasAcceptedSellerDisclaimer": true,
+      "role": "user"
+    }
+  ],
+  "passwords": {
+    "user_admin": "admin123",
+    "usr_1788570125678_b10fc": "123456"
+  },
+  "neighborhoods": [
+    {
+      "id": "b-belvedere",
+      "name": "Belvedere",
+      "type": "bairro",
+      "active": true
+    },
+    {
+      "id": "b-boa-esperanca",
+      "name": "Boa Esperança",
+      "type": "bairro",
+      "active": true
+    },
+    {
+      "id": "b-carajas",
+      "name": "Carajás",
+      "type": "bairro",
+      "active": true
+    },
+    {
+      "id": "b-centro",
+      "name": "Centro",
+      "type": "bairro",
+      "active": true
+    },
+    {
+      "id": "b-cidade-jardim",
+      "name": "Cidade Jardim",
+      "type": "bairro",
+      "active": true
+    },
+    {
+      "id": "b-constantino",
+      "name": "Constantino",
+      "type": "bairro",
+      "active": true
+    },
+    {
+      "id": "b-eneas",
+      "name": "Enéas Ferreira de Aguiar",
+      "type": "bairro",
+      "active": true
+    },
+    {
+      "id": "b-esperanca",
+      "name": "Esperança",
+      "type": "bairro",
+      "active": true
+    },
+    {
+      "id": "b-ipiranga",
+      "name": "Ipiranga",
+      "type": "bairro",
+      "active": true
+    },
+    {
+      "id": "b-jardim-alvorada",
+      "name": "Jardim Alvorada",
+      "type": "bairro",
+      "active": true
+    },
+    {
+      "id": "b-jardim-california",
+      "name": "Jardim Califórnia",
+      "type": "bairro",
+      "active": true
+    },
+    {
+      "id": "b-jardim-oliveiras",
+      "name": "Jardim das Oliveiras",
+      "type": "bairro",
+      "active": true
+    },
+    {
+      "id": "b-jardim-eldorado",
+      "name": "Jardim Eldorado",
+      "type": "bairro",
+      "active": true
+    },
+    {
+      "id": "b-jardim-esplanada",
+      "name": "Jardim Esplanada",
+      "type": "bairro",
+      "active": true
+    },
+    {
+      "id": "b-jardim-europa",
+      "name": "Jardim Europa",
+      "type": "bairro",
+      "active": true
+    },
+    {
+      "id": "b-jardim-morumbi",
+      "name": "Jardim Morumbi",
+      "type": "bairro",
+      "active": true
+    },
+    {
+      "id": "b-jardim-sul",
+      "name": "Jardim Sul",
+      "type": "bairro",
+      "active": true
+    },
+    {
+      "id": "b-marciano-brandao",
+      "name": "Marciano Brandão",
+      "type": "bairro",
+      "active": true
+    },
+    {
+      "id": "b-matinha",
+      "name": "Matinha",
+      "type": "bairro",
+      "active": true
+    },
+    {
+      "id": "b-morada-nova",
+      "name": "Morada Nova",
+      "type": "bairro",
+      "active": true
+    },
+    {
+      "id": "b-nacoes",
+      "name": "Nações",
+      "type": "bairro",
+      "active": true
+    },
+    {
+      "id": "b-olimpio-nunes",
+      "name": "Olímpio Nunes",
+      "type": "bairro",
+      "active": true
+    },
+    {
+      "id": "b-ouro-preto",
+      "name": "Ouro Preto",
+      "type": "bairro",
+      "active": true
+    },
+    {
+      "id": "b-padre-eustaquio",
+      "name": "Padre Eustáquio",
+      "type": "bairro",
+      "active": true
+    },
+    {
+      "id": "b-planalto",
+      "name": "Planalto",
+      "type": "bairro",
+      "active": true
+    },
+    {
+      "id": "b-santa-terezinha",
+      "name": "Santa Terezinha",
+      "type": "bairro",
+      "active": true
+    },
+    {
+      "id": "b-santo-antonio",
+      "name": "Santo Antônio",
+      "type": "bairro",
+      "active": true
+    },
+    {
+      "id": "b-sao-benedito",
+      "name": "São Benedito",
+      "type": "bairro",
+      "active": true
+    },
+    {
+      "id": "b-sao-cristovao",
+      "name": "São Cristóvão",
+      "type": "bairro",
+      "active": true
+    },
+    {
+      "id": "b-sao-francisco",
+      "name": "São Francisco",
+      "type": "bairro",
+      "active": true
+    },
+    {
+      "id": "b-sao-judas",
+      "name": "São Judas Tadeu",
+      "type": "bairro",
+      "active": true
+    },
+    {
+      "id": "b-sao-lucas",
+      "name": "São Lucas",
+      "type": "bairro",
+      "active": true
+    },
+    {
+      "id": "b-sao-vicente",
+      "name": "São Vicente",
+      "type": "bairro",
+      "active": true
+    },
+    {
+      "id": "b-serra-negra",
+      "name": "Serra Negra",
+      "type": "bairro",
+      "active": true
+    },
+    {
+      "id": "b-vila-nova",
+      "name": "Vila Nova",
+      "type": "bairro",
+      "active": true
+    },
+    {
+      "id": "b-zona-rural",
+      "name": "Zona Rural / Chácaras",
+      "type": "zona_rural",
+      "active": true
+    },
+    {
+      "id": "d-silvano",
+      "name": "Distrito de Silvano",
+      "type": "distrito",
+      "active": true
+    },
+    {
+      "id": "d-salitre",
+      "name": "Distrito de Salitre de Minas",
+      "type": "distrito",
+      "active": true
+    },
+    {
+      "id": "d-sao-joao",
+      "name": "Distrito de São João da Serra Negra",
+      "type": "distrito",
+      "active": true
+    },
+    {
+      "id": "d-santa-luzia",
+      "name": "Distrito de Santa Luzia dos Barros",
+      "type": "distrito",
+      "active": true
+    },
+    {
+      "id": "o-outro",
+      "name": "Outro local de Patrocínio",
+      "type": "outro",
+      "active": true
+    }
+  ],
+  "reports": [],
+  "deletionRequests": [],
+  "metrics": {
+    "totalVisits": 14,
+    "whatsappClicks": 0,
+    "totalAdsCreated": 5,
+    "totalSold": 0
+  }
+}

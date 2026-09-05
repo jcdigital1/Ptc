@@ -106,7 +106,7 @@ export const PublishAdModal: React.FC = () => {
     setPhotos((prev) => prev.filter((_, idx) => idx !== indexToRemove));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!currentUser) {
@@ -141,36 +141,53 @@ export const PublishAdModal: React.FC = () => {
     }
 
     // Determine final photos (fallback to pleasant placeholder if empty)
-    const finalPhotos = photos.length > 0
+    const rawPhotos = photos.length > 0
       ? photos
       : ['https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?w=800&auto=format&fit=crop&q=80'];
 
     setIsSubmitting(true);
 
+    // Ensure all images are safely compressed to prevent payload size issues
+    const finalPhotos: string[] = [];
+    for (const p of rawPhotos) {
+      if (p.startsWith('data:image/') && p.length > 80000) {
+        try {
+          const compressed = await compressImage(p, 750, 750, 0.75);
+          finalPhotos.push(compressed);
+        } catch {
+          finalPhotos.push(p);
+        }
+      } else {
+        finalPhotos.push(p);
+      }
+    }
+
     const numericPrice = priceType === 'free' ? 0 : parseFloat(price.replace(/\D/g, '')) || 0;
 
-    createAd({
-      title: title.trim(),
-      description: description.trim(),
-      price: numericPrice,
-      priceType,
-      categoryId,
-      condition,
-      neighborhood,
-      city: 'Patrocínio - MG',
-      whatsapp: sellerWhatsapp,
-      photos: finalPhotos,
-      acceptsOffers,
-      isFeatured: false,
-      sellerId: currentUser.id,
-      sellerName: currentUser.name,
-      sellerAvatar: currentUser.avatarUrl,
-      sellerJoinedDate: currentUser.joinedDate || 'Hoje'
-    }).then((newAd) => {
+    try {
+      const newAd = await createAd({
+        title: title.trim(),
+        description: description.trim(),
+        price: numericPrice,
+        priceType,
+        categoryId,
+        condition,
+        neighborhood,
+        city: 'Patrocínio - MG',
+        whatsapp: sellerWhatsapp,
+        photos: finalPhotos,
+        acceptsOffers,
+        isFeatured: false,
+        sellerId: currentUser.id,
+        sellerName: currentUser.name,
+        sellerAvatar: currentUser.avatarUrl,
+        sellerJoinedDate: currentUser.joinedDate || 'Hoje'
+      });
+
       setIsSubmitting(false);
-      setIsPublishModalOpen(false);
 
       if (newAd) {
+        setIsPublishModalOpen(false);
         // Reset form
         setTitle('');
         setDescription('');
@@ -178,9 +195,10 @@ export const PublishAdModal: React.FC = () => {
         setPhotos([]);
         openAdDetail(newAd);
       }
-    }).catch(() => {
+    } catch (err) {
+      console.error('Error submitting ad:', err);
       setIsSubmitting(false);
-    });
+    }
   };
 
   return (

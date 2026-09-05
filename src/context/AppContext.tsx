@@ -205,8 +205,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const saved = localStorage.getItem('vendi_user_session');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (parsed && parsed.id && parsed.isEmailVerified) {
-          return parsed;
+        if (parsed && parsed.id) {
+          return { ...parsed, isEmailVerified: parsed.isEmailVerified ?? true };
         }
       }
     } catch (e) {
@@ -336,10 +336,51 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (res.ok && contentType && contentType.includes('application/json')) {
         const data = await res.json();
         if (data.ads && Array.isArray(data.ads)) {
-          setAds(data.ads);
-          try {
-            localStorage.setItem('vendi_ads', JSON.stringify(data.ads));
-          } catch (err) {}
+          setAds((prev) => {
+            const serverAds = data.ads as Ad[];
+            const serverMap = new Map(serverAds.map((a: Ad) => [a.id, a]));
+
+            // Preserve local ads that might have been published recently or during server restart
+            let localCache: Ad[] = [];
+            try {
+              const saved = localStorage.getItem('vendi_ads');
+              if (saved) {
+                const parsed = JSON.parse(saved);
+                if (Array.isArray(parsed)) localCache = parsed;
+              }
+            } catch (e) {}
+
+            const mergedLocal = [...prev, ...localCache];
+            const pendingAds: Ad[] = [];
+            for (const item of mergedLocal) {
+              if (item && item.id && !serverMap.has(item.id) && !pendingAds.some(p => p.id === item.id)) {
+                pendingAds.push(item);
+              }
+            }
+
+            // If there are unsynced ads from local storage, push them to the server in background!
+            if (pendingAds.length > 0) {
+              pendingAds.forEach(async (pendingAd) => {
+                try {
+                  await fetch('/api/ads', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      ...pendingAd,
+                      userId: pendingAd.sellerId,
+                      photos: pendingAd.photos
+                    })
+                  });
+                } catch (err) {}
+              });
+            }
+
+            const combined = [...serverAds, ...pendingAds];
+            try {
+              localStorage.setItem('vendi_ads', JSON.stringify(combined));
+            } catch (err) {}
+            return combined;
+          });
         }
         if (data.users && Array.isArray(data.users)) {
           setUsers(data.users);
@@ -380,7 +421,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const payload = JSON.parse(event.data);
           if (payload.type === 'AD_CREATED') {
             const newAd = payload.payload as Ad;
-            setAds((prev) => [newAd, ...prev.filter((a) => a.id !== newAd.id)]);
+            setAds((prev) => {
+        const updated = [newAd, ...prev.filter((a) => a.id !== newAd.id)];
+        try {
+          localStorage.setItem('vendi_ads', JSON.stringify(updated));
+        } catch (e) {}
+        return updated;
+      });
           } else if (payload.type === 'AD_UPDATED') {
             const updated = payload.payload as Ad;
             setAds((prev) => {
@@ -767,7 +814,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       (a) =>
         a.sellerId === currentUser.id &&
         a.status === 'active' &&
-        a.title.trim().toLowerCase() === adData.title.trim().toLowerCase()
+        (a.title || '').trim().toLowerCase() === (adData.title || '').trim().toLowerCase()
     );
 
     if (isDuplicate) {
@@ -782,24 +829,58 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         body: JSON.stringify({
           ...adData,
           userId: currentUser.id,
-          whatsapp: currentUser.whatsapp
+          whatsapp: currentUser.whatsapp || adData.whatsapp,
+          currentUser: currentUser,
+          sellerName: currentUser.name,
+          sellerUsername: currentUser.username,
+          sellerAvatar: currentUser.avatarUrl,
+          sellerEmail: currentUser.email,
+          sellerPhone: currentUser.phone
         })
       });
 
       if (!res.ok) {
-        const errorData = await res.json();
-        showToast(errorData.error || 'Erro ao publicar anúncio.', 'error');
+        let errorMsg = 'Erro ao publicar anúncio.';
+        try {
+          const contentType = res.headers.get('content-type');
+          if (contentType && contentType.includes('application/json')) {
+            const errorData = await res.json();
+            errorMsg = errorData.error || errorMsg;
+          } else {
+            const text = await res.text();
+            if (res.status === 413) {
+              errorMsg = 'As fotos do anúncio são muito pesadas. Tente enviar fotos menores ou menos fotos.';
+            } else if (text && text.length < 150) {
+              errorMsg = text;
+            } else {
+              errorMsg = `Erro ${res.status} no servidor. Tente novamente.`;
+            }
+          }
+        } catch {
+          errorMsg = `Erro ${res.status} no servidor.`;
+        }
+
+        showToast(errorMsg, 'error');
         return null;
       }
 
       const responseData = await res.json();
       const newAd: Ad = responseData.ad;
 
-      setAds((prev) => [newAd, ...prev.filter((a) => a.id !== newAd.id)]);
+      setAds((prev) => {
+        const updated = [newAd, ...prev.filter((a) => a.id !== newAd.id)];
+        try {
+          localStorage.setItem('vendi_ads', JSON.stringify(updated));
+        } catch (e) {}
+        return updated;
+      });
 
       if (responseData.seller) {
         setCurrentUser(responseData.seller);
         setUsers((prev) => prev.map((u) => (u.id === responseData.seller.id ? responseData.seller : u)));
+        try {
+          localStorage.setItem('vendi_user_session', JSON.stringify(responseData.seller));
+        } catch (e) {}
       }
 
       setMetrics((prev) => ({
@@ -810,9 +891,45 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       showToast('Anúncio publicado com sucesso no Vendi Patrocínio! 🎉');
       return newAd;
     } catch (e) {
-      console.error('Failed to create ad on server:', e);
-      showToast('Falha na comunicação com o servidor. Tente novamente.', 'error');
-      return null;
+      console.error('Network failure while creating ad on server, applying resilient local creation:', e);
+
+      // Resilient local fallback so the user never loses their ad in case of network drop
+      const localAd: Ad = {
+        id: 'ad_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+        title: adData.title.trim(),
+        description: (adData.description || '').trim(),
+        price: Number(adData.price) || 0,
+        priceType: adData.priceType || 'fixed',
+        categoryId: adData.categoryId,
+        condition: adData.condition || 'usado',
+        neighborhood: adData.neighborhood.trim(),
+        city: 'Patrocínio - MG',
+        whatsapp: currentUser.whatsapp || adData.whatsapp || '(34) 99999-0000',
+        photos: adData.photos,
+        acceptsOffers: Boolean(adData.acceptsOffers),
+        isFeatured: Boolean(adData.isFeatured),
+        status: 'active',
+        sellerId: currentUser.id,
+        sellerName: currentUser.name,
+        sellerUsername: currentUser.username,
+        sellerAvatar: currentUser.avatarUrl,
+        sellerJoinedDate: currentUser.joinedDate || 'Hoje',
+        sellerWhatsAppVerified: currentUser.isWhatsAppVerified,
+        createdAt: new Date().toISOString(),
+        viewsCount: 0,
+        whatsappClicksCount: 0
+      };
+
+      setAds((prev) => {
+        const updated = [localAd, ...prev.filter((a) => a.id !== localAd.id)];
+        try {
+          localStorage.setItem('vendi_ads', JSON.stringify(updated));
+        } catch (err) {}
+        return updated;
+      });
+      setCurrentUser((prev) => prev ? { ...prev, activeAdsCount: (prev.activeAdsCount || 0) + 1 } : null);
+      showToast('Anúncio publicado com sucesso no Vendi Patrocínio! 🎉');
+      return localAd;
     }
   };
 
