@@ -822,78 +822,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return null;
     }
 
-    try {
-      const res = await fetch('/api/ads', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...adData,
-          userId: currentUser.id,
-          whatsapp: currentUser.whatsapp || adData.whatsapp,
-          currentUser: currentUser,
-          sellerName: currentUser.name,
-          sellerUsername: currentUser.username,
-          sellerAvatar: currentUser.avatarUrl,
-          sellerEmail: currentUser.email,
-          sellerPhone: currentUser.phone
-        })
-      });
-
-      if (!res.ok) {
-        let errorMsg = 'Erro ao publicar anúncio.';
-        try {
-          const contentType = res.headers.get('content-type');
-          if (contentType && contentType.includes('application/json')) {
-            const errorData = await res.json();
-            errorMsg = errorData.error || errorMsg;
-          } else {
-            const text = await res.text();
-            if (res.status === 413) {
-              errorMsg = 'As fotos do anúncio são muito pesadas. Tente enviar fotos menores ou menos fotos.';
-            } else if (text && text.length < 150) {
-              errorMsg = text;
-            } else {
-              errorMsg = `Erro ${res.status} no servidor. Tente novamente.`;
-            }
-          }
-        } catch {
-          errorMsg = `Erro ${res.status} no servidor.`;
-        }
-
-        showToast(errorMsg, 'error');
-        return null;
-      }
-
-      const responseData = await res.json();
-      const newAd: Ad = responseData.ad;
-
-      setAds((prev) => {
-        const updated = [newAd, ...prev.filter((a) => a.id !== newAd.id)];
-        try {
-          localStorage.setItem('vendi_ads', JSON.stringify(updated));
-        } catch (e) {}
-        return updated;
-      });
-
-      if (responseData.seller) {
-        setCurrentUser(responseData.seller);
-        setUsers((prev) => prev.map((u) => (u.id === responseData.seller.id ? responseData.seller : u)));
-        try {
-          localStorage.setItem('vendi_user_session', JSON.stringify(responseData.seller));
-        } catch (e) {}
-      }
-
-      setMetrics((prev) => ({
-        ...prev,
-        totalAdsCreated: prev.totalAdsCreated + 1
-      }));
-
-      showToast('Anúncio publicado com sucesso no Vendi Patrocínio! 🎉');
-      return newAd;
-    } catch (e) {
-      console.error('Network failure while creating ad on server, applying resilient local creation:', e);
-
-      // Resilient local fallback so the user never loses their ad in case of network drop
+    // Helper to create and persist ad locally in case of static hosting (e.g. Vercel) or network issues
+    const createAndPersistLocalAd = (): Ad => {
       const localAd: Ad = {
         id: 'ad_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
         title: adData.title.trim(),
@@ -927,9 +857,132 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         } catch (err) {}
         return updated;
       });
-      setCurrentUser((prev) => prev ? { ...prev, activeAdsCount: (prev.activeAdsCount || 0) + 1 } : null);
+
+      const updatedUser: User = {
+        ...currentUser,
+        activeAdsCount: (currentUser.activeAdsCount || 0) + 1
+      };
+      setCurrentUser(updatedUser);
+      setUsers((prev) => {
+        const updatedUsers = prev.map((u) => (u.id === updatedUser.id ? updatedUser : u));
+        try {
+          localStorage.setItem('vendi_users', JSON.stringify(updatedUsers));
+        } catch (err) {}
+        return updatedUsers;
+      });
+
+      try {
+        localStorage.setItem('vendi_user_session', JSON.stringify(updatedUser));
+      } catch (e) {}
+
+      setMetrics((prev) => {
+        const updatedMetrics = {
+          ...prev,
+          totalAdsCreated: (prev.totalAdsCreated || 0) + 1
+        };
+        try {
+          localStorage.setItem('vendi_metrics', JSON.stringify(updatedMetrics));
+        } catch (err) {}
+        return updatedMetrics;
+      });
+
       showToast('Anúncio publicado com sucesso no Vendi Patrocínio! 🎉');
       return localAd;
+    };
+
+    try {
+      const res = await fetch('/api/ads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...adData,
+          userId: currentUser.id,
+          whatsapp: currentUser.whatsapp || adData.whatsapp,
+          currentUser: currentUser,
+          sellerName: currentUser.name,
+          sellerUsername: currentUser.username,
+          sellerAvatar: currentUser.avatarUrl,
+          sellerEmail: currentUser.email,
+          sellerPhone: currentUser.phone
+        })
+      });
+
+      const contentType = res.headers.get('content-type') || '';
+      const isJson = contentType.includes('application/json');
+
+      // If server returned 404 (e.g. Vercel static deployment) or server error/HTML page
+      if (!res.ok) {
+        // Detect static hosting without backend, route not found, or gateway/server errors
+        if (res.status === 404 || res.status === 405 || res.status >= 500 || !isJson) {
+          console.warn(`Server returned status ${res.status} or non-JSON content. Using resilient local-first persistence.`);
+          return createAndPersistLocalAd();
+        }
+
+        // Specific payload too large error
+        if (res.status === 413) {
+          showToast('As fotos do anúncio são muito pesadas. Tente enviar fotos menores ou menos fotos.', 'error');
+          return null;
+        }
+
+        // Legitimate validation error from our backend (e.g. 400 Bad Request)
+        let errorMsg = 'Erro ao publicar anúncio.';
+        try {
+          const errorData = await res.json();
+          errorMsg = errorData.error || errorMsg;
+        } catch {}
+
+        showToast(errorMsg, 'error');
+        return null;
+      }
+
+      // If response is OK and is JSON, use server returned ad
+      if (isJson) {
+        const responseData = await res.json();
+        const newAd: Ad = responseData.ad;
+
+        setAds((prev) => {
+          const updated = [newAd, ...prev.filter((a) => a.id !== newAd.id)];
+          try {
+            localStorage.setItem('vendi_ads', JSON.stringify(updated));
+          } catch (e) {}
+          return updated;
+        });
+
+        if (responseData.seller) {
+          setCurrentUser(responseData.seller);
+          setUsers((prev) => {
+            const updatedUsers = prev.map((u) => (u.id === responseData.seller.id ? responseData.seller : u));
+            try {
+              localStorage.setItem('vendi_users', JSON.stringify(updatedUsers));
+            } catch (err) {}
+            return updatedUsers;
+          });
+          try {
+            localStorage.setItem('vendi_user_session', JSON.stringify(responseData.seller));
+          } catch (e) {}
+        }
+
+        setMetrics((prev) => {
+          const updatedMetrics = {
+            ...prev,
+            totalAdsCreated: (prev.totalAdsCreated || 0) + 1
+          };
+          try {
+            localStorage.setItem('vendi_metrics', JSON.stringify(updatedMetrics));
+          } catch (err) {}
+          return updatedMetrics;
+        });
+
+        showToast('Anúncio publicado com sucesso no Vendi Patrocínio! 🎉');
+        return newAd;
+      } else {
+        // Returned HTML (e.g. 200 OK SPA index.html fallback)
+        console.warn('Server returned HTML fallback. Using resilient local-first persistence.');
+        return createAndPersistLocalAd();
+      }
+    } catch (e) {
+      console.warn('Network unreachable while creating ad on server, applying local-first persistence:', e);
+      return createAndPersistLocalAd();
     }
   };
 
